@@ -28,18 +28,12 @@ const server = http.createServer((req, res) => {
       const body = Buffer.concat(chunks).toString();
       console.log(`[API] body: ${(body.length/1024).toFixed(0)}KB`);
 
-      let parsed;
-      try { parsed = JSON.parse(body); }
-      catch(e) { console.error('[API] JSON parse error:', e.message); return send(res, 400, JSON.stringify({error:'Invalid JSON'})); }
+      // Validate JSON first
+      try { JSON.parse(body); }
+      catch(e) { console.error('[API] JSON parse error:', e.message); return send(res, 400, JSON.stringify({error:'Invalid client JSON'})); }
 
-      const payload = JSON.stringify({
-        model: parsed.model || 'deepseek-chat',
-        messages: parsed.messages,
-        max_tokens: parsed.max_tokens || 1200,
-        temperature: parsed.temperature || 0.1
-      });
-
-      console.log(`[API] forwarding to DeepSeek (${(payload.length/1024).toFixed(0)}KB)...`);
+      // Forward raw body directly — don't re-serialize (avoids type mismatches)
+      console.log(`[API] forwarding to DeepSeek (${(body.length/1024).toFixed(0)}KB)...`);
       const t0 = Date.now();
 
       const opts = {
@@ -49,7 +43,7 @@ const server = http.createServer((req, res) => {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${API_KEY}`,
-          'Content-Length': Buffer.byteLength(payload)
+          'Content-Length': Buffer.byteLength(body)
         },
         timeout: 120000
       };
@@ -59,13 +53,7 @@ const server = http.createServer((req, res) => {
         pres.on('data', c => data += c);
         pres.on('end', () => {
           console.log(`[API] DeepSeek responded: ${pres.statusCode} in ${((Date.now()-t0)/1000).toFixed(1)}s`);
-          // Always return JSON
-          try {
-            const parsed = JSON.parse(data);
-            send(res, pres.statusCode, JSON.stringify(parsed), 'application/json');
-          } catch(e) {
-            send(res, 500, JSON.stringify({error:'DeepSeek returned non-JSON', raw:data.substring(0,200)}), 'application/json');
-          }
+          send(res, pres.statusCode, data, 'application/json');
         });
       });
 
@@ -80,13 +68,8 @@ const server = http.createServer((req, res) => {
         send(res, 504, JSON.stringify({error: 'Upstream timeout'}), 'application/json');
       });
 
-      try {
-        preq.write(payload);
-        preq.end();
-      } catch(e) {
-        console.error('[API] write error:', e.message);
-        send(res, 500, JSON.stringify({error: 'Write error: '+e.message}), 'application/json');
-      }
+      preq.write(body);
+      preq.end();
     });
     return;
   }
