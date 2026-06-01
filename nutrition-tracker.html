@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>营养拍 — 拍照识别食物热量</title>
+
+<!-- PWA Meta -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="营养拍">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#00B894">
+<meta name="description" content="拍照识别食物热量，记录每日营养摄入">
+
+<!-- App Icon -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%2300B894%22 width=%22100%22 height=%22100%22 rx=%2220%22/><text x=%2250%22 y=%2255%22 font-size=%2250%22 text-anchor=%22middle%22 fill=%22white%22 dominant-baseline=%22central%22>📸</text></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%2300B894%22 width=%22100%22 height=%22100%22 rx=%2220%22/><text x=%2250%22 y=%2255%22 font-size=%2250%22 text-anchor=%22middle%22 fill=%22white%22 dominant-baseline=%22central%22>📸</text></svg>">
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --mint:#00B894;--mint2:#55EFC4;--red:#e74c3c;--bg:#f5f6f8;
+  --card:#fff;--text:#2d3436;--sub:#636e72;--line:#eee;
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+}
+body{
+  font-family:"PingFang SC","Microsoft YaHei","Helvetica Neue",sans-serif;
+  background:#f0f2f5;color:var(--text);min-height:100vh;overflow-x:hidden;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none;
+  -webkit-overflow-scrolling:touch;
+}
+.app{max-width:480px;margin:0 auto;min-height:100vh;position:relative;padding-bottom:calc(72px + var(--safe-bottom))}
+.page{display:none;padding:16px;animation:fadeIn .25s}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:.6;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* PWA Install Banner */
+.install-banner{
+  display:none;background:var(--mint);color:#fff;padding:12px 16px;
+  align-items:center;justify-content:space-between;gap:12px;
+  position:sticky;top:0;z-index:50;
+}
+.install-banner.show{display:flex}
+.install-banner .msg{font-size:13px;font-weight:500;flex:1}
+.install-banner button{
+  background:#fff;color:var(--mint);border:none;padding:8px 16px;
+  border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;
+  white-space:nowrap;font-family:inherit;
+}
+.install-banner .close{background:transparent;color:rgba(255,255,255,.7);padding:4px 8px;font-size:18px}
+
+/* Tab bar */
+.tab-bar{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:480px;background:#fff;display:flex;
+  border-top:1px solid var(--line);z-index:100;
+  padding:6px 0 calc(6px + var(--safe-bottom));
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+}
+.tab-btn{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:6px 0;cursor:pointer;border:none;background:none;
+  color:var(--sub);font-size:10px;transition:.15s;font-family:inherit;
+  -webkit-tap-highlight-color:transparent;min-height:48px;justify-content:center;
+}
+.tab-btn.active{color:var(--mint)}
+.tab-btn .icon{font-size:22px}
+
+/* Header */
+.header{text-align:center;padding:10px 0 6px;display:flex;align-items:center;justify-content:center;gap:8px}
+.header h1{font-size:20px;color:var(--mint);font-weight:700;letter-spacing:1px}
+
+/* Camera */
+.camera-container{background:#000;border-radius:16px;overflow:hidden;position:relative;aspect-ratio:4/3;margin-bottom:12px}
+.camera-container video{width:100%;height:100%;object-fit:cover;display:block}
+.camera-container .overlay{position:absolute;inset:0;border:3px solid rgba(255,255,255,.3);border-radius:12px;margin:8px;pointer-events:none}
+.capture-btn{
+  position:absolute;bottom:20px;left:50%;transform:translateX(-50%);
+  width:68px;height:68px;border-radius:50%;background:rgba(255,255,255,.9);
+  border:4px solid var(--mint);cursor:pointer;transition:.15s;
+  box-shadow:0 2px 16px rgba(0,0,0,.3);
+  -webkit-tap-highlight-color:transparent;
+}
+.capture-btn:active{transform:translateX(-50%) scale(.9)}
+.capture-hint{position:absolute;top:12px;left:50%;transform:translateX(-50%);color:#fff;font-size:13px;background:rgba(0,0,0,.45);padding:5px 18px;border-radius:20px}
+.preview-thumb{width:80px;height:80px;object-fit:cover;border-radius:10px;cursor:pointer;flex-shrink:0;border:2px solid transparent}
+.preview-thumb:active{border-color:var(--mint)}
+
+/* Cards */
+.card{background:var(--card);border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.card h3{font-size:16px;margin-bottom:10px;color:var(--text)}
+
+/* Search */
+.search-box{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.search-box input{flex:1;padding:12px 14px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:16px;outline:none;font-family:inherit;transition:.2s;-webkit-appearance:none}
+.search-box input:focus{border-color:var(--mint)}
+.search-box button{background:var(--mint);color:#fff;border:none;padding:12px 16px;border-radius:12px;font-size:14px;cursor:pointer;font-weight:600;white-space:nowrap;font-family:inherit}
+
+/* Food list */
+.food-item{display:flex;align-items:center;justify-content:space-between;padding:14px;border-radius:10px;cursor:pointer;transition:.15s;border:1px solid transparent}
+.food-item:active,.food-item.selected{background:#f0fdf8;border-color:var(--mint2)}
+.food-item .name{font-weight:600;font-size:15px}
+.food-item .unit{font-size:12px;color:var(--sub);margin-top:2px}
+.food-item .cal{font-weight:700;color:var(--mint);font-size:15px;white-space:nowrap}
+
+/* Portion input */
+.portion-input{display:flex;align-items:center;gap:12px;margin:10px 0;justify-content:center}
+.portion-input input{width:100px;padding:12px;border:1.5px solid #e0e0e0;border-radius:12px;font-size:18px;text-align:center;font-family:inherit;outline:none;-webkit-appearance:none}
+.portion-input input:focus{border-color:var(--mint)}
+.portion-input span{color:var(--sub);font-size:15px}
+
+/* Quick grams buttons */
+.quick-grams{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin:8px 0}
+.quick-grams button{padding:8px 16px;border:1.5px solid #e0e0e0;border-radius:20px;background:#fff;font-size:13px;cursor:pointer;font-family:inherit;transition:.15s}
+.quick-grams button:active{background:var(--mint);color:#fff;border-color:var(--mint)}
+
+/* Meal section */
+.meal-group{margin-bottom:16px}
+.meal-group .meal-title{font-size:14px;font-weight:600;color:var(--mint);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.meal-group .meal-title .dot{width:8px;height:8px;border-radius:50%;background:var(--mint)}
+.log-item{display:flex;align-items:center;gap:10px;padding:14px 12px;background:#f8faf9;border-radius:12px;margin-bottom:6px}
+.log-item:active{background:#eef6f2}
+.log-item .info{flex:1;min-width:0}
+.log-item .food-name{font-weight:600;font-size:14px}
+.log-item .detail{font-size:12px;color:var(--sub);margin-top:3px}
+.log-item .kcals{font-weight:700;color:var(--red);font-size:14px;white-space:nowrap}
+.log-item .del{color:#ccc;cursor:pointer;font-size:20px;padding:8px;border:none;background:none;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center}
+.log-item .del:active{background:#fee;color:var(--red)}
+
+/* Progress ring */
+.progress-ring-wrap{display:flex;align-items:center;justify-content:center;gap:20px;padding:16px 0;flex-wrap:wrap}
+.progress-ring{position:relative;width:120px;height:120px;flex-shrink:0}
+.progress-ring svg{transform:rotate(-90deg)}
+.progress-ring .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.progress-ring .cal-num{font-size:28px;font-weight:800;color:var(--text)}
+.progress-ring .cal-label{font-size:11px;color:var(--sub);margin-top:2px}
+.nutrient-bars{flex:1;min-width:140px;display:flex;flex-direction:column;gap:10px}
+.nutrient-bar .nb-label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px}
+.nutrient-bar .nb-label span:last-child{font-weight:600}
+.nutrient-bar .nb-track{height:8px;border-radius:4px;background:#eee;overflow:hidden}
+.nutrient-bar .nb-fill{height:100%;border-radius:4px;transition:.4s}
+
+/* Tag */
+.tag{display:inline-block;padding:5px 12px;border-radius:16px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid #e0e0e0;background:#fff;transition:.15s;font-family:inherit;margin:3px}
+.tag:active,.tag.active{background:var(--mint);color:#fff;border-color:var(--mint)}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s}
+.modal-sheet{background:#fff;width:100%;max-width:480px;border-radius:20px 20px 0 0;padding:24px 16px calc(24px + var(--safe-bottom));max-height:75vh;overflow-y:auto;animation:slideUp .25s}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.modal-sheet h3{font-size:17px;margin-bottom:14px;text-align:center}
+
+/* Settings */
+.setting-row{display:flex;align-items:center;justify-content:space-between;padding:16px 0;border-bottom:1px solid var(--line)}
+.setting-row .label{font-size:15px}
+.setting-row input{width:90px;padding:10px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:16px;text-align:center;font-family:inherit;outline:none;-webkit-appearance:none}
+.setting-row input:focus{border-color:var(--mint)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 20px;border-radius:12px;font-size:15px;font-weight:600;cursor:pointer;border:none;transition:.15s;font-family:inherit;gap:6px;min-height:48px}
+.btn:active{opacity:.8;transform:scale(.98)}
+.btn-primary{background:var(--mint);color:#fff;width:100%}
+.btn-outline{background:#fff;color:var(--mint);border:1.5px solid var(--mint)}
+.btn-block{width:100%}
+
+/* Toast */
+.toast{position:fixed;bottom:100px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 24px;border-radius:24px;font-size:14px;z-index:300;pointer-events:none;animation:toastIn .3s}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+.hidden{display:none!important}
+.pt-8{padding-top:8px}
+.text-center{text-align:center}
+.text-sub{color:var(--sub);font-size:13px}
+.mb-8{margin-bottom:8px}
+.mb-12{margin-bottom:12px}
+.empty-state{text-align:center;padding:48px 20px;color:var(--sub)}
+.empty-state .big{font-size:60px;margin-bottom:12px}
+
+/* Splash screen */
+.splash{position:fixed;inset:0;background:#00B894;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;transition:opacity .4s,visibility .4s}
+.splash.hide{opacity:0;visibility:hidden;pointer-events:none}
+.splash .logo{font-size:72px;margin-bottom:16px;animation:splashPulse 2s infinite}
+.splash .title{color:#fff;font-size:28px;font-weight:800;letter-spacing:4px}
+.splash .sub{color:rgba(255,255,255,.7);font-size:13px;margin-top:8px;letter-spacing:2px}
+@keyframes splashPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+</style>
+</head>
+<body>
+
+<!-- Splash Screen -->
+<div class="splash" id="splash">
+  <div class="logo">📸</div>
+  <div class="title">营养拍</div>
+  <div class="sub">拍照识别 · 营养追踪</div>
+</div>
+
+<!-- Install Banner -->
+<div class="install-banner" id="installBanner">
+  <span class="msg">添加到主屏幕，使用更方便</span>
+  <button id="btnInstall">安装</button>
+  <button class="close" onclick="dismissInstall()">×</button>
+</div>
+
+<div class="app" id="app">
+  <!-- Tab 1: Camera -->
+  <div class="page active" id="pageCamera">
+    <div class="header"><h1>📸 营养拍</h1></div>
+    <div class="camera-container" id="cameraBox">
+      <video id="video" autoplay playsinline muted></video>
+      <div class="overlay"></div>
+      <div class="capture-hint" id="camHint">将食物对准框内</div>
+      <button class="capture-btn" id="btnCapture" title="拍照"></button>
+    </div>
+    <div id="noCamera" class="card text-center hidden">
+      <div style="font-size:48px;margin-bottom:8px">📷</div>
+      <p style="margin:8px 0;font-size:15px">无法访问摄像头</p>
+      <p class="text-sub">请在手机设置中允许摄像头权限<br>或使用"食物库"Tab 手动记录</p>
+    </div>
+    <div class="card" id="recentPhotosCard" style="display:none">
+      <h3>最近拍摄</h3>
+      <div id="recentPhotos" style="display:flex;gap:10px;overflow-x:auto;padding:4px 0;-webkit-overflow-scrolling:touch"></div>
+    </div>
+    <button class="btn btn-outline btn-block" style="margin-top:8px" onclick="switchTab('foods')">
+      手动搜索食物库 →
+    </button>
+  </div>
+
+  <!-- Tab 2: Food Database -->
+  <div class="page" id="pageFoods">
+    <div class="header"><h1>🍎 食物库</h1></div>
+    <div class="search-box">
+      <input type="search" id="foodSearch" placeholder="搜索食物…" oninput="renderFoodList()" autocomplete="off">
+      <button onclick="switchTab('camera')">📸</button>
+    </div>
+    <div id="foodTags" style="margin-bottom:10px;display:flex;flex-wrap:wrap;gap:4px"></div>
+    <div id="foodList"></div>
+  </div>
+
+  <!-- Tab 3: Daily Log -->
+  <div class="page" id="pageDiary">
+    <div class="header"><h1>📋 今日记录</h1></div>
+    <div id="diaryContent"></div>
+  </div>
+
+  <!-- Tab 4: Profile -->
+  <div class="page" id="pageProfile">
+    <div class="header"><h1>⚙️ 我的</h1></div>
+    <div class="card">
+      <h3>每日营养目标</h3>
+      <div class="setting-row"><span>热量目标 (kcal)</span><input type="number" id="calTarget" value="2000" min="1000" max="5000" step="50" onchange="saveSettings()"></div>
+      <div class="setting-row"><span>蛋白质 (g)</span><input type="number" id="protTarget" value="60" min="20" max="200" onchange="saveSettings()"></div>
+      <div class="setting-row"><span>脂肪 (g)</span><input type="number" id="fatTarget" value="55" min="20" max="150" onchange="saveSettings()"></div>
+      <div class="setting-row"><span>碳水 (g)</span><input type="number" id="carbTarget" value="250" min="50" max="500" onchange="saveSettings()"></div>
+    </div>
+    <div class="card">
+      <h3>历史记录</h3>
+      <div id="historyList" style="max-height:300px;overflow-y:auto;-webkit-overflow-scrolling:touch"></div>
+    </div>
+    <button class="btn btn-block" style="background:#eee;color:#999;margin-top:12px" onclick="if(confirm('确定清除所有数据？此操作不可恢复。')){clearAll()}">清除所有数据</button>
+  </div>
+
+  <!-- Bottom Tab Bar -->
+  <div class="tab-bar" id="tabBar">
+    <button class="tab-btn active" onclick="switchTab('camera')"><span class="icon">📸</span>拍照</button>
+    <button class="tab-btn" onclick="switchTab('foods')"><span class="icon">🍎</span>食物库</button>
+    <button class="tab-btn" onclick="switchTab('diary')"><span class="icon">📋</span>今日</button>
+    <button class="tab-btn" onclick="switchTab('profile')"><span class="icon">⚙️</span>我的</button>
+  </div>
+</div>
+
+<!-- Portion Modal -->
+<div class="modal-overlay hidden" id="modalPortion">
+  <div class="modal-sheet">
+    <h3 id="modalFoodName">选择食物</h3>
+    <div id="modalFoodInfo" class="text-sub mb-12 text-center"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px" id="modalSearchRow">
+      <input type="search" id="modalFoodSearch" placeholder="搜索食物名称…" style="flex:1;padding:10px 14px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:15px;font-family:inherit;outline:none" oninput="modalFoodSearch()" autocomplete="off">
+    </div>
+    <div id="modalFoodResults" style="max-height:180px;overflow-y:auto;margin-bottom:8px"></div>
+    <div class="quick-grams">
+      <button onclick="setPortion(50)">50g</button>
+      <button onclick="setPortion(100)">100g</button>
+      <button onclick="setPortion(150)">150g</button>
+      <button onclick="setPortion(200)">200g</button>
+      <button onclick="setPortion(300)">300g</button>
+      <button onclick="setPortion(500)">500g</button>
+    </div>
+    <div class="portion-input">
+      <input type="number" id="portionInput" value="100" min="10" max="2000" step="10" inputmode="numeric">
+      <span>克 (g)</span>
+    </div>
+    <div style="margin:8px 0;padding:12px;background:#f8faf9;border-radius:10px">
+      <div style="display:flex;justify-content:space-between;font-size:14px">
+        <span>热量</span><span style="font-weight:700;color:var(--red)" id="previewCal">0 kcal</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--sub);margin-top:6px">
+        <span>蛋白质 <span id="previewP">0g</span></span>
+        <span>脂肪 <span id="previewF">0g</span></span>
+        <span>碳水 <span id="previewC">0g</span></span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+      <span style="font-size:13px;color:var(--sub);white-space:nowrap">餐次:</span>
+      <select id="mealType" style="flex:1;padding:10px;border:1.5px solid #e0e0e0;border-radius:10px;font-size:15px;font-family:inherit;background:#fff">
+        <option value="breakfast">🌅 早餐</option><option value="lunch" selected>☀️ 午餐</option>
+        <option value="dinner">🌙 晚餐</option><option value="snack">🍪 加餐</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="confirmAddFood()">确认添加</button>
+    <button class="btn btn-outline btn-block" style="margin-top:8px" onclick="closeModal()">取消</button>
+  </div>
+</div>
+
+<script>
+// ============ PWA: Service Worker ============
+if('serviceWorker' in navigator){
+  const swCode = `
+const CACHE='nutri-v2';
+const ASSETS=[self.location.href];
+self.addEventListener('install',e=>{e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)));self.skipWaiting()});
+self.addEventListener('activate',e=>{e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));self.clients.claim()});
+self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{if(res.ok){const clone=res.clone();caches.open(CACHE).then(c=>c.put(e.request,clone))}return res})))});
+`;
+  const blob=new Blob([swCode],{type:'application/javascript'});
+  const swUrl=URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl).catch(()=>{});
+}
+
+// ============ PWA: Install Prompt ============
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();
+  deferredPrompt=e;
+  document.getElementById('installBanner').classList.add('show');
+});
+document.getElementById('btnInstall').addEventListener('click',async()=>{
+  if(!deferredPrompt)return;
+  deferredPrompt.prompt();
+  const{outcome}=await deferredPrompt.userChoice;
+  if(outcome==='accepted'){showToast('已添加到主屏幕')}
+  deferredPrompt=null;
+  document.getElementById('installBanner').classList.remove('show');
+});
+function dismissInstall(){document.getElementById('installBanner').classList.remove('show')}
+
+// ============ Splash Screen ============
+window.addEventListener('load',()=>{
+  setTimeout(()=>{document.getElementById('splash').classList.add('hide')},800);
+});
+
+// ============ FOOD DATABASE (85+ items) ============
+const FOODS = [
+  {id:'rice',name:'米饭',cat:'主食',cal:116,p:2.6,f:0.3,c:25.9},
+  {id:'porridge',name:'白粥',cat:'主食',cal:46,p:1.1,f:0.3,c:9.7},
+  {id:'noodle',name:'面条(煮)',cat:'主食',cal:110,p:3.5,f:0.4,c:22.5},
+  {id:'steamed_bun',name:'馒头',cat:'主食',cal:223,p:7.0,f:1.1,c:44.2},
+  {id:'dumpling',name:'饺子(猪肉)',cat:'主食',cal:240,p:9.0,f:12.0,c:22.0},
+  {id:'wonton',name:'馄饨',cat:'主食',cal:180,p:7.5,f:8.0,c:18.0},
+  {id:'bread_wheat',name:'全麦面包',cat:'主食',cal:246,p:9.0,f:3.4,c:43.0},
+  {id:'bread_white',name:'白面包',cat:'主食',cal:278,p:8.5,f:4.0,c:50.0},
+  {id:'corn',name:'玉米',cat:'主食',cal:112,p:4.0,f:1.2,c:22.8},
+  {id:'sweet_potato',name:'红薯',cat:'主食',cal:86,p:1.6,f:0.1,c:20.1},
+  {id:'oatmeal',name:'燕麦片',cat:'主食',cal:367,p:13.5,f:6.7,c:61.6},
+  {id:'brown_rice',name:'糙米饭',cat:'主食',cal:123,p:2.6,f:0.9,c:25.6},
+  {id:'congee_preserved_egg',name:'皮蛋瘦肉粥',cat:'主食',cal:58,p:3.0,f:1.8,c:7.5},
+  {id:'fried_rice',name:'蛋炒饭',cat:'主食',cal:188,p:5.5,f:7.0,c:25.0},
+  // Meat & Protein
+  {id:'pork_lean',name:'猪瘦肉',cat:'肉类',cal:143,p:20.3,f:6.2,c:1.5},
+  {id:'pork_belly',name:'五花肉',cat:'肉类',cal:395,p:13.2,f:37.0,c:2.4},
+  {id:'chicken_breast',name:'鸡胸肉',cat:'肉类',cal:133,p:31.0,f:1.2,c:0},
+  {id:'chicken_leg',name:'鸡腿',cat:'肉类',cal:181,p:16.0,f:13.0,c:0},
+  {id:'beef_lean',name:'牛肉(瘦)',cat:'肉类',cal:125,p:20.0,f:4.2,c:2.0},
+  {id:'beef_rib',name:'牛腩',cat:'肉类',cal:250,p:15.0,f:20.0,c:1.5},
+  {id:'lamb',name:'羊肉',cat:'肉类',cal:203,p:19.0,f:14.1,c:0},
+  {id:'duck',name:'鸭肉',cat:'肉类',cal:240,p:15.5,f:19.7,c:0.2},
+  {id:'egg',name:'鸡蛋(煮)',cat:'肉类',cal:144,p:13.3,f:8.8,c:2.8},
+  {id:'egg_fried',name:'煎鸡蛋',cat:'肉类',cal:196,p:12.0,f:15.0,c:1.5},
+  {id:'fish_bass',name:'鲈鱼',cat:'肉类',cal:105,p:18.6,f:3.4,c:0},
+  {id:'shrimp',name:'虾仁',cat:'肉类',cal:99,p:20.3,f:1.0,c:0.2},
+  {id:'salmon',name:'三文鱼',cat:'肉类',cal:208,p:20.4,f:13.4,c:0},
+  {id:'tofu',name:'豆腐',cat:'肉类',cal:81,p:8.1,f:3.7,c:4.2},
+  {id:'bacon',name:'培根',cat:'肉类',cal:541,p:12.0,f:53.0,c:1.0},
+  {id:'sausage',name:'火腿肠',cat:'肉类',cal:212,p:14.0,f:16.0,c:3.0},
+  // Vegetables
+  {id:'broccoli',name:'西兰花',cat:'蔬菜',cal:34,p:2.8,f:0.4,c:6.6},
+  {id:'spinach',name:'菠菜',cat:'蔬菜',cal:23,p:2.9,f:0.4,c:3.6},
+  {id:'tomato',name:'番茄',cat:'蔬菜',cal:18,p:0.9,f:0.2,c:4.0},
+  {id:'cucumber',name:'黄瓜',cat:'蔬菜',cal:16,p:0.7,f:0.1,c:2.9},
+  {id:'lettuce',name:'生菜',cat:'蔬菜',cal:14,p:1.4,f:0.2,c:1.6},
+  {id:'cabbage',name:'大白菜',cat:'蔬菜',cal:13,p:1.5,f:0.2,c:2.1},
+  {id:'carrot',name:'胡萝卜',cat:'蔬菜',cal:41,p:0.9,f:0.2,c:9.6},
+  {id:'potato',name:'土豆',cat:'蔬菜',cal:76,p:2.0,f:0.2,c:17.0},
+  {id:'eggplant',name:'茄子',cat:'蔬菜',cal:25,p:1.0,f:0.1,c:5.9},
+  {id:'mushroom',name:'香菇',cat:'蔬菜',cal:34,p:2.2,f:0.3,c:6.3},
+  {id:'celery',name:'芹菜',cat:'蔬菜',cal:16,p:0.8,f:0.1,c:3.3},
+  {id:'bell_pepper',name:'青椒',cat:'蔬菜',cal:20,p:1.0,f:0.2,c:4.6},
+  {id:'onion',name:'洋葱',cat:'蔬菜',cal:40,p:1.1,f:0.1,c:9.1},
+  {id:'kelp',name:'海带',cat:'蔬菜',cal:14,p:1.2,f:0.1,c:2.5},
+  {id:'corn_veg',name:'玉米粒',cat:'蔬菜',cal:112,p:4.0,f:1.2,c:22.8},
+  {id:'pumpkin',name:'南瓜',cat:'蔬菜',cal:22,p:0.7,f:0.1,c:5.3},
+  // Fruits
+  {id:'apple',name:'苹果',cat:'水果',cal:52,p:0.2,f:0.2,c:13.8},
+  {id:'banana',name:'香蕉',cat:'水果',cal:89,p:1.1,f:0.3,c:22.8},
+  {id:'orange',name:'橙子',cat:'水果',cal:47,p:0.9,f:0.1,c:11.8},
+  {id:'grape',name:'葡萄',cat:'水果',cal:69,p:0.7,f:0.2,c:18.1},
+  {id:'watermelon',name:'西瓜',cat:'水果',cal:30,p:0.6,f:0.1,c:6.8},
+  {id:'strawberry',name:'草莓',cat:'水果',cal:32,p:0.7,f:0.3,c:7.7},
+  {id:'kiwi',name:'猕猴桃',cat:'水果',cal:61,p:1.1,f:0.5,c:14.7},
+  {id:'mango',name:'芒果',cat:'水果',cal:60,p:0.8,f:0.4,c:15.0},
+  {id:'pear',name:'梨',cat:'水果',cal:51,p:0.4,f:0.1,c:13.1},
+  {id:'peach',name:'桃子',cat:'水果',cal:39,p:0.9,f:0.3,c:9.5},
+  {id:'dragon_fruit',name:'火龙果',cat:'水果',cal:55,p:1.1,f:0.4,c:13.0},
+  {id:'blueberry',name:'蓝莓',cat:'水果',cal:57,p:0.7,f:0.3,c:14.5},
+  {id:'avocado',name:'牛油果',cat:'水果',cal:160,p:2.0,f:15.0,c:8.5},
+  // Beverages
+  {id:'milk',name:'全脂牛奶',cat:'饮品',cal:61,p:3.0,f:3.2,c:4.8},
+  {id:'soy_milk',name:'豆浆',cat:'饮品',cal:33,p:2.9,f:0.9,c:2.4},
+  {id:'yogurt',name:'酸奶(原味)',cat:'饮品',cal:72,p:2.5,f:2.7,c:9.3},
+  {id:'cola',name:'可乐',cat:'饮品',cal:42,p:0,f:0,c:10.6},
+  {id:'sprite',name:'雪碧',cat:'饮品',cal:44,p:0,f:0,c:11.0},
+  {id:'tea_green',name:'绿茶(无糖)',cat:'饮品',cal:1,p:0,f:0,c:0},
+  {id:'coffee_black',name:'黑咖啡',cat:'饮品',cal:2,p:0.1,f:0,c:0},
+  {id:'latte',name:'拿铁咖啡',cat:'饮品',cal:50,p:2.5,f:2.3,c:5.0},
+  {id:'bubble_tea',name:'珍珠奶茶',cat:'饮品',cal:85,p:1.0,f:2.5,c:15.0},
+  {id:'beer',name:'啤酒',cat:'饮品',cal:43,p:0.5,f:0,c:3.6},
+  {id:'juice_orange',name:'橙汁',cat:'饮品',cal:45,p:0.7,f:0.2,c:10.2},
+  // Snacks
+  {id:'cookie',name:'曲奇饼干',cat:'零食',cal:501,p:6.0,f:24.0,c:65.0},
+  {id:'chocolate',name:'牛奶巧克力',cat:'零食',cal:546,p:7.6,f:32.0,c:56.0},
+  {id:'chips',name:'薯片',cat:'零食',cal:536,p:5.0,f:35.0,c:50.0},
+  {id:'cake_sponge',name:'海绵蛋糕',cat:'零食',cal:347,p:5.0,f:15.0,c:48.0},
+  {id:'ice_cream',name:'冰淇淋',cat:'零食',cal:207,p:3.5,f:11.0,c:24.0},
+  {id:'nuts_mixed',name:'混合坚果',cat:'零食',cal:607,p:20.0,f:54.0,c:16.0},
+  {id:'energy_bar',name:'能量棒',cat:'零食',cal:400,p:12.0,f:10.0,c:60.0},
+  // Seasoning & Oil
+  {id:'oil_veg',name:'植物油',cat:'调味品',cal:899,p:0,f:99.9,c:0},
+  {id:'sugar',name:'白砂糖',cat:'调味品',cal:400,p:0,f:0,c:99.9},
+  {id:'soy_sauce',name:'酱油',cat:'调味品',cal:63,p:5.6,f:0.1,c:9.9},
+  {id:'salt',name:'食盐',cat:'调味品',cal:0,p:0,f:0,c:0},
+  {id:'butter',name:'黄油',cat:'调味品',cal:717,p:0.9,f:81.0,c:0.1},
+  {id:'ketchup',name:'番茄酱',cat:'调味品',cal:83,p:1.7,f:0.2,c:19.0},
+  {id:'mayo',name:'蛋黄酱',cat:'调味品',cal:680,p:1.0,f:75.0,c:2.0},
+];
+
+const MEAL_NAMES={breakfast:'🌅 早餐',lunch:'☀️ 午餐',dinner:'🌙 晚餐',snack:'🍪 加餐'};
+
+// ============ STATE ============
+let currentTab='camera';
+let stream=null;
+let pendingPhoto=null;
+let currentFood=null;
+let categoryFilter='全部';
+
+function S(){try{return JSON.parse(localStorage.getItem('nutri_data'))||{}}catch{return{}}}
+function save(d){localStorage.setItem('nutri_data',JSON.stringify(d))}
+function today(){return new Date().toISOString().split('T')[0]}
+function getLogs(date){const d=S();return d[date]||[]}
+function saveLogs(date,logs){const d=S();d[date]=logs;save(d)}
+function getSettings(){const d=S();return d.settings||{cal:2000,prot:60,fat:55,carb:250}}
+function saveSettings(){
+  const s={cal:+document.getElementById('calTarget').value,
+           prot:+document.getElementById('protTarget').value,
+           fat:+document.getElementById('fatTarget').value,
+           carb:+document.getElementById('carbTarget').value};
+  const d=S();d.settings=s;save(d);renderDiary();
+}
+
+// ============ CAMERA ============
+async function startCamera(){
+  const video=document.getElementById('video');
+  const box=document.getElementById('cameraBox');
+  const hint=document.getElementById('noCamera');
+  try{
+    if(stream){stream.getTracks().forEach(t=>t.stop())}
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'environment',width:{ideal:1280},height:{ideal:720}}
+    });
+    video.srcObject=stream;
+    box.style.display='block';hint.classList.add('hidden');
+    document.getElementById('camHint').textContent='将食物对准框内';
+  }catch(e){
+    box.style.display='none';hint.classList.remove('hidden');
+  }
+}
+function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}
+
+document.getElementById('btnCapture').addEventListener('click',()=>{
+  const video=document.getElementById('video');
+  if(!video.srcObject)return;
+  const canvas=document.createElement('canvas');
+  canvas.width=video.videoWidth||640;
+  canvas.height=video.videoHeight||480;
+  canvas.getContext('2d').drawImage(video,0,0);
+  pendingPhoto=canvas.toDataURL('image/jpeg',.8);
+  // Vibrate feedback
+  if(navigator.vibrate)navigator.vibrate(50);
+  // Save thumbnail
+  const photos=getRecentPhotos();
+  photos.unshift({src:pendingPhoto,time:Date.now()});
+  if(photos.length>8)photos.length=8;
+  const d=S();d.recentPhotos=photos;save(d);
+  renderRecentPhotos();
+  document.getElementById('camHint').textContent='已拍照！选择食物';
+  openModalForPhoto();
+});
+
+function getRecentPhotos(){const d=S();return d.recentPhotos||[]}
+
+function renderRecentPhotos(){
+  const photos=getRecentPhotos();
+  const card=document.getElementById('recentPhotosCard');
+  const container=document.getElementById('recentPhotos');
+  if(photos.length===0){card.style.display='none';return}
+  card.style.display='block';
+  container.innerHTML=photos.map((p,i)=>`<img src="${p.src}" class="preview-thumb" onclick="pickRecentPhoto(${i})" title="使用此照片">`).join('');
+}
+
+function pickRecentPhoto(i){
+  const photos=getRecentPhotos();
+  pendingPhoto=photos[i].src;
+  document.getElementById('camHint').textContent='已选照片！选择食物';
+  openModalForPhoto();
+}
+
+function openModalForPhoto(){
+  const modal=document.getElementById('modalPortion');
+  modal.classList.remove('hidden');
+  document.getElementById('modalFoodName').textContent='选择食物';
+  document.getElementById('modalFoodInfo').innerHTML='';
+  document.getElementById('modalSearchRow').style.display='flex';
+  document.getElementById('modalFoodResults').innerHTML='';
+  const searchEl=document.getElementById('modalFoodSearch');
+  if(searchEl){searchEl.value='';searchEl.focus()}
+  document.getElementById('portionInput').value=100;
+  document.getElementById('mealType').value='lunch';
+  currentFood=null;
+  updatePreview();
+}
+
+function modalFoodSearch(){
+  const q=(document.getElementById('modalFoodSearch')?.value||'').toLowerCase();
+  const results=!q?[]:FOODS.filter(f=>f.name.toLowerCase().includes(q)||f.cat.includes(q)||f.name.includes(q)).slice(0,12);
+  const el=document.getElementById('modalFoodResults');
+  if(!el)return;
+  el.innerHTML=results.length?results.map(f=>`
+    <div class="food-item" onclick="selectModalFood('${f.id}')" style="padding:10px 12px">
+      <div><div class="name" style="font-size:14px">${f.name}</div><div class="unit">${f.cat} · ${f.cal}kcal/100g</div></div>
+      <span class="cal" style="font-size:14px">${f.cal} kcal</span>
+    </div>`).join(''):'<div class="text-sub text-center" style="padding:16px">未找到匹配食物<br>换个关键词试试</div>';
+}
+
+function selectModalFood(id){
+  currentFood=FOODS.find(f=>f.id===id);
+  if(!currentFood)return;
+  document.getElementById('modalFoodName').textContent=currentFood.name;
+  document.getElementById('modalFoodInfo').innerHTML=`<span class="tag" style="background:var(--mint);color:#fff;border-color:var(--mint)">${currentFood.cat}</span> <span style="color:var(--mint);font-weight:600;margin-left:4px">${currentFood.cal} kcal/100g</span>`;
+  document.getElementById('modalSearchRow').style.display='none';
+  document.getElementById('modalFoodResults').innerHTML='';
+  document.getElementById('portionInput').value=100;
+  updatePreview();
+}
+
+function setPortion(g){
+  document.getElementById('portionInput').value=g;
+  updatePreview();
+}
+
+function updatePreview(){
+  const g=parseFloat(document.getElementById('portionInput').value)||100;
+  if(!currentFood){
+    document.getElementById('previewCal').textContent='-- kcal';
+    document.getElementById('previewP').textContent='--g';
+    document.getElementById('previewF').textContent='--g';
+    document.getElementById('previewC').textContent='--g';
+    return;
+  }
+  const r=g/100;
+  document.getElementById('previewCal').textContent=Math.round(currentFood.cal*r)+' kcal';
+  document.getElementById('previewP').textContent=(currentFood.p*r).toFixed(1)+'g';
+  document.getElementById('previewF').textContent=(currentFood.f*r).toFixed(1)+'g';
+  document.getElementById('previewC').textContent=(currentFood.c*r).toFixed(1)+'g';
+}
+document.getElementById('portionInput').addEventListener('input',updatePreview);
+
+function confirmAddFood(){
+  if(!currentFood){showToast('请先搜索并选择一个食物');return}
+  const g=parseFloat(document.getElementById('portionInput').value)||100;
+  if(g<5){showToast('份量不能少于5g');return}
+  const meal=document.getElementById('mealType').value;
+  const r=g/100;
+  const entry={
+    foodId:currentFood.id,name:currentFood.name,cat:currentFood.cat,
+    grams:g,cal:Math.round(currentFood.cal*r),
+    p:+(currentFood.p*r).toFixed(1),f:+(currentFood.f*r).toFixed(1),c:+(currentFood.c*r).toFixed(1),
+    meal,photo:pendingPhoto||null,time:new Date().toISOString()
+  };
+  const logs=getLogs(today());
+  logs.unshift(entry);
+  saveLogs(today(),logs);
+  pendingPhoto=null;
+  closeModal();
+  if(navigator.vibrate)navigator.vibrate([30,50,30]);
+  showToast('已添加 · '+entry.cal+' kcal');
+  renderDiary();
+  switchTab('diary');
+}
+
+function closeModal(){
+  document.getElementById('modalPortion').classList.add('hidden');
+  document.getElementById('modalFoodName').textContent='';
+  document.getElementById('modalFoodInfo').innerHTML='';
+  document.getElementById('modalSearchRow').style.display='flex';
+  document.getElementById('modalFoodResults').innerHTML='';
+  const se=document.getElementById('modalFoodSearch');if(se)se.value='';
+  document.getElementById('portionInput').value=100;
+  currentFood=null;
+}
+
+// ============ FOOD DATABASE TAB ============
+function renderFoodTags(){
+  const cats=['全部',...new Set(FOODS.map(f=>f.cat))];
+  document.getElementById('foodTags').innerHTML=cats.map(c=>
+    `<button class="tag${categoryFilter===c?' active':''}" onclick="categoryFilter='${c}';renderFoodList()">${c}</button>`
+  ).join('');
+}
+
+function renderFoodList(){
+  const q=(document.getElementById('foodSearch').value||'').toLowerCase();
+  let foods=FOODS;
+  if(q)foods=FOODS.filter(f=>f.name.toLowerCase().includes(q)||f.cat.includes(q)||f.name.includes(q));
+  if(categoryFilter!=='全部')foods=foods.filter(f=>f.cat===categoryFilter);
+  const el=document.getElementById('foodList');
+  el.innerHTML=foods.map(f=>`
+    <div class="food-item" onclick="selectFoodFromList('${f.id}')">
+      <div><div class="name">${f.name}</div><div class="unit">${f.cat} · 蛋白质${f.p}g 脂肪${f.f}g 碳水${f.c}g</div></div>
+      <div style="text-align:right"><div class="cal">${f.cal}</div><div style="font-size:11px;color:var(--sub)">kcal/100g</div></div>
+    </div>
+  `).join('')||'<div class="empty-state"><div class="big">🔍</div><p>未找到匹配食物</p></div>';
+}
+
+function selectFoodFromList(id){
+  currentFood=FOODS.find(f=>f.id===id);
+  if(!currentFood)return;
+  document.getElementById('modalFoodName').textContent=currentFood.name;
+  document.getElementById('modalFoodInfo').innerHTML=`<span class="tag" style="background:var(--mint);color:#fff;border-color:var(--mint)">${currentFood.cat}</span> <span style="color:var(--mint);font-weight:600;margin-left:4px">${currentFood.cal} kcal/100g</span>`;
+  document.getElementById('modalSearchRow').style.display='none';
+  document.getElementById('modalFoodResults').innerHTML='';
+  document.getElementById('portionInput').value=100;
+  updatePreview();
+  document.getElementById('modalPortion').classList.remove('hidden');
+}
+
+// ============ DIARY TAB ============
+function renderDiary(){
+  const logs=getLogs(today());
+  const settings=getSettings();
+  const totalCal=logs.reduce((s,l)=>s+l.cal,0);
+  const totalP=logs.reduce((s,l)=>s+l.p,0);
+  const totalF=logs.reduce((s,l)=>s+l.f,0);
+  const totalC=logs.reduce((s,l)=>s+l.c,0);
+  const calPct=Math.min(100,Math.round(totalCal/settings.cal*100));
+  const el=document.getElementById('diaryContent');
+
+  let html='';
+  const r=52,circ=2*Math.PI*r,dash=(1-Math.min(100,calPct)/100)*circ;
+  const ringColor=calPct>110?'var(--red)':calPct>90?'#f39c12':'var(--mint)';
+
+  html+=`<div class="card"><div class="progress-ring-wrap">
+    <div class="progress-ring">
+      <svg width="120" height="120" viewBox="0 0 120 120"><circle cx="60" cy="60" r="${r}" fill="none" stroke="#eee" stroke-width="10"/><circle cx="60" cy="60" r="${r}" fill="none" stroke="${ringColor}" stroke-width="10" stroke-dasharray="${circ}" stroke-dashoffset="${dash}" stroke-linecap="round" style="transition:.6s"/></svg>
+      <div class="center"><span class="cal-num">${totalCal}</span><span class="cal-label">/ ${settings.cal} kcal</span></div>
+    </div>
+    <div class="nutrient-bars">
+      <div class="nutrient-bar"><div class="nb-label"><span>蛋白质</span><span>${totalP.toFixed(1)} / ${settings.prot}g</span></div><div class="nb-track"><div class="nb-fill" style="width:${Math.min(100,totalP/settings.prot*100)}%;background:#3498db"></div></div></div>
+      <div class="nutrient-bar"><div class="nb-label"><span>脂肪</span><span>${totalF.toFixed(1)} / ${settings.fat}g</span></div><div class="nb-track"><div class="nb-fill" style="width:${Math.min(100,totalF/settings.fat*100)}%;background:#e74c3c"></div></div></div>
+      <div class="nutrient-bar"><div class="nb-label"><span>碳水</span><span>${totalC.toFixed(1)} / ${settings.carb}g</span></div><div class="nb-track"><div class="nb-fill" style="width:${Math.min(100,totalC/settings.carb*100)}%;background:#f39c12"></div></div></div>
+    </div>
+  </div></div>`;
+
+  if(logs.length===0){
+    html+='<div class="empty-state"><div class="big">🍽️</div><p>今天还没有记录</p><p class="text-sub">去拍照或搜索食物库添加</p></div>';
+    el.innerHTML=html;return;
+  }
+
+  for(const [mealKey,mealName] of Object.entries(MEAL_NAMES)){
+    const mealLogs=logs.filter(l=>l.meal===mealKey);
+    if(mealLogs.length===0)continue;
+    const mealCal=mealLogs.reduce((s,l)=>s+l.cal,0);
+    html+=`<div class="meal-group"><div class="meal-title"><span class="dot"></span>${mealName} · ${mealCal} kcal</div>`;
+    mealLogs.forEach((l,i)=>{
+      const globalIdx=logs.indexOf(l);
+      html+=`<div class="log-item">
+        ${l.photo?`<img src="${l.photo}" style="width:48px;height:48px;object-fit:cover;border-radius:10px;flex-shrink:0">`:''}
+        <div class="info"><div class="food-name">${l.name}</div><div class="detail">${l.grams}g · 蛋白质${l.p}g 脂肪${l.f}g 碳水${l.c}g</div></div>
+        <div class="kcals">${l.cal}<span style="font-size:11px;font-weight:400"> kcal</span></div>
+        <button class="del" onclick="deleteLog(${globalIdx})" title="删除">×</button>
+      </div>`;
+    });
+    html+='</div>';
+  }
+  el.innerHTML=html;
+}
+
+function deleteLog(idx){
+  if(!confirm('删除这条记录？'))return;
+  const logs=getLogs(today());
+  logs.splice(idx,1);
+  saveLogs(today(),logs);
+  renderDiary();
+  showToast('已删除');
+}
+
+// ============ PROFILE ============
+function renderProfile(){
+  const s=getSettings();
+  document.getElementById('calTarget').value=s.cal;
+  document.getElementById('protTarget').value=s.prot;
+  document.getElementById('fatTarget').value=s.fat;
+  document.getElementById('carbTarget').value=s.carb;
+  const d=S();
+  const dates=Object.keys(d).filter(k=>k!=='settings'&&k!=='recentPhotos'&&d[k]&&d[k].length>0).sort().reverse().slice(0,14);
+  const hl=document.getElementById('historyList');
+  hl.innerHTML=dates.length?dates.map(date=>{
+    const logs=d[date];const cal=logs.reduce((s,l)=>s+l.cal,0);
+    const items=logs.length;
+    const displayDate=date.replace(/^\d{4}-/,'').replace('-','月')+'日';
+    const weekDay=['周日','周一','周二','周三','周四','周五','周六'][new Date(date).getDay()];
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #f0f0f0;font-size:14px;cursor:pointer" onclick="viewHistory('${date}')">
+      <span>${displayDate} <span style="font-size:11px;color:#aaa">${weekDay}</span></span>
+      <span style="color:var(--sub);font-size:12px">${items}条</span>
+      <span style="font-weight:700;color:var(--mint)">${cal} kcal</span>
+    </div>`;
+  }).join(''):'<div class="text-sub text-center pt-8">暂无历史记录</div>';
+}
+
+function viewHistory(date){
+  const logs=getLogs(date);
+  const cal=logs.reduce((s,l)=>s+l.cal,0);
+  const items=logs.map(l=>`· ${l.name} ${l.grams}g · ${l.cal}kcal`).join('\n');
+  alert(`${date}\n共 ${logs.length} 条记录 · 总热量 ${cal} kcal\n\n${items}`);
+}
+
+function clearAll(){
+  localStorage.removeItem('nutri_data');
+  pendingPhoto=null;currentFood=null;
+  renderDiary();renderProfile();renderFoodList();renderRecentPhotos();
+  showToast('数据已清除');
+}
+
+// ============ NAVIGATION ============
+function switchTab(tab){
+  currentTab=tab;
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  const pageMap={camera:'pageCamera',foods:'pageFoods',diary:'pageDiary',profile:'pageProfile'};
+  document.getElementById(pageMap[tab]).classList.add('active');
+  const tabIdx={camera:0,foods:1,diary:2,profile:3};
+  document.querySelectorAll('.tab-btn')[tabIdx[tab]].classList.add('active');
+
+  if(tab==='camera'){startCamera();renderRecentPhotos()}
+  else if(tab==='foods'){stopCamera();renderFoodTags();renderFoodList()}
+  else if(tab==='diary'){stopCamera();renderDiary()}
+  else if(tab==='profile'){stopCamera();renderProfile()}
+}
+
+function showToast(msg){
+  const existing=document.querySelector('.toast');
+  if(existing)existing.remove();
+  const t=document.createElement('div');t.className='toast';t.textContent=msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(),2000);
+}
+
+// ============ Gesture: Swipe between tabs ============
+let touchStartX=0,touchStartY=0;
+document.addEventListener('touchstart',e=>{
+  touchStartX=e.touches[0].clientX;
+  touchStartY=e.touches[0].clientY;
+},{passive:true});
+
+document.addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-touchStartX;
+  const dy=e.changedTouches[0].clientY-touchStartY;
+  if(Math.abs(dx)<60||Math.abs(dx)<Math.abs(dy))return;
+  const tabs=['camera','foods','diary','profile'];
+  const idx=tabs.indexOf(currentTab);
+  if(dx>0&&idx>0)switchTab(tabs[idx-1]);
+  if(dx<0&&idx<tabs.length-1)switchTab(tabs[idx+1]);
+});
+
+// ============ Keyboard nav (desktop test) ============
+document.addEventListener('keydown',e=>{
+  const tabs=['camera','foods','diary','profile'];
+  const idx=tabs.indexOf(currentTab);
+  if(e.key==='ArrowLeft'&&idx>0)switchTab(tabs[idx-1]);
+  if(e.key==='ArrowRight'&&idx<tabs.length-1)switchTab(tabs[idx+1]);
+});
+
+// ============ INIT ============
+document.getElementById('portionInput').addEventListener('input',updatePreview);
+document.getElementById('calTarget').value=getSettings().cal;
+document.getElementById('protTarget').value=getSettings().prot;
+document.getElementById('fatTarget').value=getSettings().fat;
+document.getElementById('carbTarget').value=getSettings().carb;
+
+startCamera();
+renderRecentPhotos();
+renderFoodTags();
+renderFoodList();
+
+// Handle visibility change - restart camera when app comes back
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden&&currentTab==='camera')startCamera();
+  if(document.hidden)stopCamera();
+});
+</script>
+</body>
+</html>
