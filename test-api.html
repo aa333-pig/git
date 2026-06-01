@@ -1,0 +1,22 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><title>API Test</title></head><body>
+<h2>API 连接测试</h2>
+<button onclick="test()">测试 /api/analyze</button>
+<div id="result"></div>
+<script>
+async function test(){
+  const r=document.getElementById('result');
+  r.textContent='测试中...';
+  try{
+    const resp=await fetch('/api/analyze',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'deepseek-chat',messages:[{role:'user',content:'say hello'}],max_tokens:10})
+    });
+    const data=await resp.json();
+    r.innerHTML='<b style="color:green">API 连接成功!</b><br><pre>'+JSON.stringify(data,null,2).substring(0,300)+'</pre>';
+  }catch(e){
+    r.innerHTML='<b style="color:red">失败: '+e.message+'</b><br>请确认浏览器地址栏是 http://localhost:3456';
+  }
+}
+</script>
+</body></html>
