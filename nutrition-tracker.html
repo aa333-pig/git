@@ -608,6 +608,21 @@ function handleFileSelect(e){
 }
 
 // ============ AI ANALYSIS ============
+function compressImage(dataUrl,maxW=512,quality=0.5){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement('canvas');
+      let w=img.width,h=img.height;
+      if(w>maxW){h=Math.round(h*maxW/w);w=maxW}
+      canvas.width=w;canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      resolve(canvas.toDataURL('image/jpeg',quality));
+    };
+    img.src=dataUrl;
+  });
+}
+
 async function analyzePhoto(){
   if(!pendingPhoto){showToast('请先拍照或从相册选择图片');return}
   const modal=document.getElementById('modalAnalyze');
@@ -618,33 +633,47 @@ async function analyzePhoto(){
   result.style.display='none';
   document.getElementById('analyzeActions').innerHTML='<button class="btn btn-outline btn-block" onclick="closeAnalyzeModal()">取消分析</button>';
 
-  // Scroll to show photo + loading
   content.innerHTML=`
-    <div style="margin-bottom:16px;border-radius:12px;overflow:hidden;max-height:200px">
-      <img src="${pendingPhoto}" style="width:100%;height:200px;object-fit:cover;display:block">
+    <div style="margin-bottom:16px;border-radius:12px;overflow:hidden;max-height:180px">
+      <img src="${pendingPhoto}" style="width:100%;height:180px;object-fit:cover;display:block">
     </div>
-    <div style="text-align:center;padding:16px 0">
-      <div style="font-size:40px;margin-bottom:8px">🔍</div>
-      <div style="font-size:14px;color:var(--sub);margin-bottom:8px" id="analyzeStatus">正在识别食物成分…</div>
+    <div style="text-align:center;padding:12px 0">
+      <div style="font-size:36px;margin-bottom:6px">🔍</div>
+      <div style="font-size:13px;color:var(--sub);margin-bottom:6px" id="analyzeStatus">正在压缩图片…</div>
       <div style="height:4px;background:#eee;border-radius:2px;overflow:hidden">
-        <div id="analyzeProgress" style="height:100%;width:10%;background:var(--mint);border-radius:2px;transition:width .3s"></div>
+        <div id="analyzeProgress" style="height:100%;width:5%;background:var(--mint);border-radius:2px;transition:.3s"></div>
       </div>
     </div>`;
 
   try{
-    const items=await aiRecognize(pendingPhoto);
+    // Compress image significantly before sending
+    const compressed=await compressImage(pendingPhoto,512,0.5);
+    const items=await aiRecognize(compressed);
     showAnalyzeResult(items);
   }catch(e){
-    console.warn('AI failed:',e);
+    const errMsg=e.message||String(e);
+    console.error('AI failed:',errMsg);
+    // Show more helpful error
+    let help='';
+    if(errMsg.includes('Failed to fetch')||errMsg.includes('NetworkError')){
+      help='CORS 跨域限制，请通过 HTTPS 访问（GitHub Pages）';
+    }else if(errMsg.includes('429')){
+      help='API 请求过于频繁，请稍后再试';
+    }else if(errMsg.includes('401')||errMsg.includes('403')){
+      help='API 密钥失效';
+    }else{
+      help='错误详情: '+errMsg.substring(0,60);
+    }
     content.innerHTML=`
-      <div style="margin-bottom:16px;border-radius:12px;overflow:hidden;max-height:200px">
-        <img src="${pendingPhoto}" style="width:100%;height:200px;object-fit:cover;display:block">
+      <div style="margin-bottom:12px;border-radius:12px;overflow:hidden;max-height:160px">
+        <img src="${pendingPhoto}" style="width:100%;height:160px;object-fit:cover;display:block">
       </div>
-      <div style="text-align:center;padding:16px 0">
-        <div style="font-size:40px;margin-bottom:8px">⚠️</div>
-        <div style="font-size:15px;margin-bottom:8px">AI 分析暂时不可用</div>
-        <div style="font-size:13px;color:var(--sub);margin-bottom:12px">请手动搜索食物名称添加</div>
-        <button class="btn btn-primary" onclick="closeAnalyzeModal();openModalForPhoto()">手动搜索食物库</button>
+      <div style="text-align:center;padding:12px 0">
+        <div style="font-size:36px;margin-bottom:6px">⚠️</div>
+        <div style="font-size:14px;margin-bottom:4px">AI 分析暂不可用</div>
+        <div style="font-size:11px;color:var(--sub);margin-bottom:10px">${help}</div>
+        <button class="btn btn-primary" onclick="closeAnalyzeModal();openModalForPhoto()" style="margin-bottom:6px">手动搜索食物库</button>
+        <button class="btn btn-outline btn-block" onclick="closeAnalyzeModal();addMealPreset('鸭腿饭')" style="font-size:13px">👉 直接使用套餐模板（鸭腿饭等）</button>
       </div>`;
   }
 }
@@ -652,61 +681,41 @@ async function analyzePhoto(){
 async function aiRecognize(photoBase64){
   const prog=document.getElementById('analyzeProgress');
   const stat=document.getElementById('analyzeStatus');
-  if(prog)prog.style.width='30%';
-  if(stat)stat.textContent='正在发送图片给 AI…';
+  if(prog)prog.style.width='20%';
+  if(stat)stat.textContent='正在连接 AI 服务…';
 
-  const prompt=`分析这张食物图片。你需要识别图中所有食物，然后直接给出完整分析结论。
+  const prompt='分析这张食物图片。识别图中所有食物,直接返回JSON。\n{"dish":"菜名","total_cal":总热量,"protein":蛋白质g,"fat":脂肪g,"carbs":碳水g,"items":[{"name":"食材","grams":克数,"cal":热量,"protein":蛋白g,"fat":脂肪g,"carbs":碳水g}]}';
 
-严格按以下 JSON 格式返回，不要加任何其他文字：
-{
-  "dish":"这道菜的名字",
-  "total_cal":总热量千卡,
-  "protein":蛋白质克数,
-  "fat":脂肪克数,
-  "carbs":碳水克数,
-  "items":[
-    {"name":"食物1","grams":克数,"cal":热量,"protein":蛋白质g,"fat":脂肪g,"carbs":碳水g},
-    {"name":"食物2","grams":克数,"cal":热量,"protein":蛋白质g,"fat":脂肪g,"carbs":碳水g}
-  ]
-}
-
-要求：
-- dish 使用中文，简洁描述这道菜
-- grams 是估算的可食用部分重量
-- 各项营养素数值根据食物克数估算
-- 总热量和总营养素是所有 items 的加总
-- 如果看不清楚某些成分，给出合理估算，不要跳过`;
-
-  if(prog)prog.style.width='50%';
-  if(stat)stat.textContent='AI 正在识别分析…';
-
-  const API_KEY='sk-a8e9984b0ecd4995922cf3bb616d43b5';
-  const API_URL='https://api.deepseek.com/chat/completions';
   const base64Data=photoBase64.split(',')[1]||photoBase64;
+  const payload={model:'deepseek-chat',messages:[{role:'user',content:[{type:'image_url',image_url:{url:`data:image/jpeg;base64,${base64Data}`}},{type:'text',text:prompt}]}],max_tokens:1200,temperature:0.1};
+
+  // Use local proxy if running from localhost, otherwise direct API
+  const isLocal=location.hostname==='localhost'||location.hostname.startsWith('192.168.')||location.hostname.startsWith('10.')||location.hostname.startsWith('172.');
+  const API_URL=isLocal?'/api/analyze':'https://api.deepseek.com/chat/completions';
+  const headers={'Content-Type':'application/json'};
+  if(!isLocal)headers['Authorization']='Bearer sk-a8e9984b0ecd4995922cf3bb616d43b5';
+
+  if(prog)prog.style.width='40%';
+  if(stat)stat.textContent='AI 正在分析图片…';
 
   const resp=await fetch(API_URL,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${API_KEY}`},
-    body:JSON.stringify({
-      model:'deepseek-chat',
-      messages:[{role:'user',content:[
-        {type:'image_url',image_url:{url:`data:image/jpeg;base64,${base64Data}`}},
-        {type:'text',text:prompt}
-      ]}],
-      max_tokens:1500,temperature:0.1
-    })
+    method:'POST',headers,
+    body:JSON.stringify(isLocal?payload:{...payload})
   });
 
-  if(!resp.ok)throw new Error(`API ${resp.status}`);
+  if(!resp.ok){
+    const errText=await resp.text().catch(()=>'');
+    throw new Error(`${resp.status} ${errText.substring(0,50)}`);
+  }
   const data=await resp.json();
-  if(prog)prog.style.width='80%';
-  if(stat)stat.textContent='解析识别结果…';
+  if(prog)prog.style.width='85%';
+  if(stat)stat.textContent='解析结果…';
 
   const content=data.choices[0].message.content;
   const jsonMatch=content.match(/\{[\s\S]*\}/);
-  if(!jsonMatch)throw new Error('No JSON in response');
+  if(!jsonMatch)throw new Error('AI 返回格式异常');
   const parsed=JSON.parse(jsonMatch[0]);
-  if(!parsed.items||!Array.isArray(parsed.items))throw new Error('Invalid format');
+  if(!parsed.items||!Array.isArray(parsed.items))throw new Error('AI 未识别到食物');
   return parsed;
 }
 
