@@ -36,9 +36,10 @@ const server = http.createServer((req, res) => {
       console.log(`[API] forwarding to DeepSeek (${(body.length/1024).toFixed(0)}KB)...`);
       const t0 = Date.now();
 
+      // DeepSeek OpenAI endpoint doesn't support vision. Use Anthropic-compatible endpoint.
       const opts = {
         hostname: 'api.deepseek.com',
-        path: '/chat/completions',
+        path: '/anthropic/messages',
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -52,7 +53,7 @@ const server = http.createServer((req, res) => {
         let data = '';
         pres.on('data', c => data += c);
         pres.on('end', () => {
-          console.log(`[API] DeepSeek responded: ${pres.statusCode} in ${((Date.now()-t0)/1000).toFixed(1)}s`);
+          console.log(`[API] DeepSeek ${pres.statusCode} in ${((Date.now()-t0)/1000).toFixed(1)}s body:${data.substring(0,200)}`);
           send(res, pres.statusCode, data, 'application/json');
         });
       });

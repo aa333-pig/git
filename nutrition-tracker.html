@@ -684,10 +684,17 @@ function updateAnalyzeUI(msg,pct){
 async function aiRecognize(photoBase64){
   const prompt='Analyze this food photo. Return ONLY JSON:\n{"dish":"dish name in Chinese","total_cal":number,"protein":number,"fat":number,"carbs":number,"items":[{"name":"ingredient","grams":number,"cal":number,"protein":number,"fat":number,"carbs":number}]}';
 
+  // Use Anthropic Messages format (DeepSeek Anthropic-compatible endpoint supports vision)
   const base64Data=photoBase64.split(',')[1]||photoBase64;
-  const payload={model:'deepseek-chat',messages:[{role:'user',content:[{type:'image_url',image_url:{url:`data:image/jpeg;base64,${base64Data}`}},{type:'text',text:prompt}]}],max_tokens:1200,temperature:0.1};
+  const payload={
+    model:'deepseek-chat',
+    max_tokens:1200,
+    messages:[{role:'user',content:[
+      {type:'image',source:{type:'base64',media_type:'image/jpeg',data:base64Data}},
+      {type:'text',text:prompt}
+    ]}]
+  };
 
-  // Use relative URL — works on any origin
   const API='/api/analyze';
   const ctrl=new AbortController();
   const timer=setTimeout(()=>ctrl.abort(),90000);
@@ -710,9 +717,15 @@ async function aiRecognize(photoBase64){
   updateAnalyzeUI('解析结果…',85);
 
   const data=await resp.json();
-  if(!data.choices||!data.choices[0])throw new Error('API 返回异常');
-  const content=data.choices[0].message.content;
-  const jsonMatch=content.match(/\{[\s\S]*\}/);
+  // Anthropic response format: content[0].text
+  let text='';
+  if (data.content && data.content[0]) {
+    text = data.content[0].text;
+  } else if (data.choices && data.choices[0]) {
+    text = data.choices[0].message.content;
+  }
+  if(!text)throw new Error('API 返回异常');
+  const jsonMatch=text.match(/\{[\s\S]*\}/);
   if(!jsonMatch)throw new Error('AI 未返回识别结果');
   return JSON.parse(jsonMatch[0]);
 }
@@ -1105,7 +1118,7 @@ document.addEventListener('keydown',e=>{
   const el=document.getElementById('connStatus');
   if(!el)return;
   try{
-    const r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'deepseek-chat',messages:[{role:'user',content:'ok'}],max_tokens:1})});
+    const r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'deepseek-chat',max_tokens:5,messages:[{role:'user',content:'test'}]})});
     if(r.ok||r.status===400){
       el.textContent='✅ AI 就绪';el.style.background='#eafaf1';el.style.color='#27ae60';return;
     }
