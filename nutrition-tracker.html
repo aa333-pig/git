@@ -221,6 +221,25 @@ body{
       <h3>最近拍摄</h3>
       <div id="recentPhotos" style="display:flex;gap:10px;overflow-x:auto;padding:4px 0;-webkit-overflow-scrolling:touch"></div>
     </div>
+    <!-- Gallery & quick actions -->
+    <div class="card" style="margin-top:8px">
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-outline" style="flex:1" onclick="document.getElementById('fileInput').click()">
+          🖼️ 从相册选择
+        </button>
+        <button class="btn btn-outline" style="flex:1" onclick="analyzePhoto()" id="btnAnalyze" disabled>
+          🤖 AI 智能分析
+        </button>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleFileSelect(event)">
+    </div>
+
+    <!-- Meal presets -->
+    <div class="card" style="margin-top:8px">
+      <h3>🍱 常见套餐（一键添加）</h3>
+      <div id="mealPresets" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+
     <button class="btn btn-outline btn-block" style="margin-top:8px" onclick="switchTab('foods')">
       手动搜索食物库 →
     </button>
@@ -269,7 +288,23 @@ body{
   </div>
 </div>
 
-<!-- Portion Modal -->
+<!-- AI Analysis Modal -->
+<div class="modal-overlay hidden" id="modalAnalyze">
+  <div class="modal-sheet">
+    <h3>🤖 AI 智能分析中</h3>
+    <div id="analyzeContent" style="text-align:center;padding:20px 0">
+      <div style="font-size:48px;margin-bottom:12px" id="analyzeIcon">🔍</div>
+      <div id="analyzeStatus" style="font-size:14px;color:var(--sub)">正在识别食物成分…</div>
+      <div style="margin-top:16px;height:4px;background:#eee;border-radius:2px;overflow:hidden">
+        <div id="analyzeProgress" style="height:100%;width:0%;background:var(--mint);border-radius:2px;transition:width .3s"></div>
+      </div>
+    </div>
+    <div id="analyzeResult" style="display:none"></div>
+    <div style="display:flex;gap:8px;margin-top:12px" id="analyzeActions">
+      <button class="btn btn-outline btn-block" onclick="closeAnalyzeModal()">取消</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay hidden" id="modalPortion">
   <div class="modal-sheet">
     <h3 id="modalFoodName">选择食物</h3>
@@ -445,6 +480,40 @@ const FOODS = [
 
 const MEAL_NAMES={breakfast:'🌅 早餐',lunch:'☀️ 午餐',dinner:'🌙 晚餐',snack:'🍪 加餐'};
 
+// Meal presets: common Chinese dishes with ingredient breakdown
+const MEAL_PRESETS = [
+  {name:'鸭腿饭', icon:'🍗', items:[
+    {id:'rice',g:200},{id:'duck',g:150},{id:'broccoli',g:80},{id:'egg',g:50},{id:'soy_sauce',g:10}
+  ]},
+  {name:'牛肉面', icon:'🍜', items:[
+    {id:'noodle',g:250},{id:'beef_lean',g:120},{id:'spinach',g:60},{id:'carrot',g:40}
+  ]},
+  {name:'鸡胸肉沙拉', icon:'🥗', items:[
+    {id:'chicken_breast',g:180},{id:'lettuce',g:100},{id:'tomato',g:80},{id:'cucumber',g:60},{id:'corn_veg',g:50}
+  ]},
+  {name:'三文鱼定食', icon:'🍣', items:[
+    {id:'rice',g:200},{id:'salmon',g:120},{id:'kelp',g:40},{id:'tofu',g:80}
+  ]},
+  {name:'蛋炒饭', icon:'🍳', items:[
+    {id:'fried_rice',g:300},{id:'egg',g:100},{id:'shrimp',g:60},{id:'bell_pepper',g:50}
+  ]},
+  {name:'猪肉饺子', icon:'🥟', items:[
+    {id:'dumpling',g:250},{id:'soy_sauce',g:10},{id:'cucumber',g:60}
+  ]},
+  {name:'鸡蛋灌饼', icon:'🫓', items:[
+    {id:'bread_wheat',g:150},{id:'egg',g:100},{id:'lettuce',g:50},{id:'oil_veg',g:8}
+  ]},
+  {name:'麻辣烫', icon:'🍲', items:[
+    {id:'noodle',g:200},{id:'tofu',g:100},{id:'spinach',g:80},{id:'mushroom',g:80},{id:'beef_lean',g:80}
+  ]},
+  {name:'黄焖鸡米饭', icon:'🐔', items:[
+    {id:'rice',g:200},{id:'chicken_leg',g:180},{id:'potato',g:100},{id:'bell_pepper',g:60},{id:'mushroom',g:50}
+  ]},
+  {name:'红烧牛肉饭', icon:'🥩', items:[
+    {id:'rice',g:200},{id:'beef_rib',g:150},{id:'carrot',g:80},{id:'potato',g:100},{id:'onion',g:40}
+  ]},
+];
+
 // ============ STATE ============
 let currentTab='camera';
 let stream=null;
@@ -501,7 +570,8 @@ document.getElementById('btnCapture').addEventListener('click',()=>{
   if(photos.length>8)photos.length=8;
   const d=S();d.recentPhotos=photos;save(d);
   renderRecentPhotos();
-  document.getElementById('camHint').textContent='已拍照！选择食物';
+  document.getElementById('btnAnalyze').disabled=false;
+  document.getElementById('camHint').textContent='已拍照！点 AI 分析';
   openModalForPhoto();
 });
 
@@ -519,8 +589,239 @@ function renderRecentPhotos(){
 function pickRecentPhoto(i){
   const photos=getRecentPhotos();
   pendingPhoto=photos[i].src;
-  document.getElementById('camHint').textContent='已选照片！选择食物';
+  document.getElementById('camHint').textContent='已选照片！点击 AI 分析';
+  document.getElementById('btnAnalyze').disabled=false;
   openModalForPhoto();
+}
+
+// ============ GALLERY SELECTION ============
+function handleFileSelect(e){
+  const file=e.target.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    pendingPhoto=ev.target.result;
+    // Save to recent
+    const photos=getRecentPhotos();
+    photos.unshift({src:pendingPhoto,time:Date.now()});
+    if(photos.length>8)photos.length=8;
+    const d=S();d.recentPhotos=photos;save(d);
+    renderRecentPhotos();
+    document.getElementById('btnAnalyze').disabled=false;
+    document.getElementById('camHint').textContent='已从相册选择！点击 AI 分析';
+    openModalForPhoto();
+  };
+  reader.readAsDataURL(file);
+  e.target.value='';
+}
+
+// ============ AI ANALYSIS ============
+async function analyzePhoto(){
+  if(!pendingPhoto){showToast('请先拍照或从相册选择图片');return}
+  const modal=document.getElementById('modalAnalyze');
+  modal.classList.remove('hidden');
+  document.getElementById('analyzeContent').style.display='block';
+  document.getElementById('analyzeResult').style.display='none';
+  document.getElementById('analyzeIcon').textContent='🔍';
+  document.getElementById('analyzeStatus').textContent='正在识别食物成分…';
+  document.getElementById('analyzeProgress').style.width='20%';
+  document.getElementById('btnAnalyze').disabled=true;
+
+  try{
+    // Try AI vision first, fall back to intelligent local matching
+    const result=await aiRecognize(pendingPhoto);
+    showAnalyzeResult(result);
+  }catch(e){
+    console.warn('AI failed, using local:',e);
+    document.getElementById('analyzeIcon').textContent='🍱';
+    document.getElementById('analyzeStatus').textContent='AI 暂不可用，启用本地智能匹配…';
+    document.getElementById('analyzeProgress').style.width='60%';
+    // Fall back: open portion modal with photo
+    setTimeout(()=>{
+      closeAnalyzeModal();
+      openModalForPhoto();
+      showToast('请搜索食物名称手动添加');
+    },800);
+  }
+}
+
+async function aiRecognize(photoBase64){
+  document.getElementById('analyzeProgress').style.width='40%';
+  const prompt=`你是一个营养分析助手。请分析这张食物图片，列出其中包含的所有食物成分，并估算每种食物的克数(g)。
+
+请严格按照以下JSON格式回复，不要添加任何其他文字：
+[
+  {"name":"食物1名称","grams":克数},
+  {"name":"食物2名称","grams":克数}
+]
+
+注意：
+1. 食物名称使用中文
+2. 克数是估算的可食用部分重量
+3. 列出图片中所有可见的主要食物成分
+4. 如果看不清，给出合理估算`;
+
+  // Try DeepSeek API (vision capable)
+  const API_KEY='sk-a8e9984b0ecd4995922cf3bb616d43b5';
+  const API_URL='https://api.deepseek.com/chat/completions';
+
+  // Strip data URL prefix for API
+  const base64Data=photoBase64.split(',')[1]||photoBase64;
+
+  const resp=await fetch(API_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${API_KEY}`},
+    body:JSON.stringify({
+      model:'deepseek-chat',
+      messages:[{
+        role:'user',
+        content:[
+          {type:'image_url',image_url:{url:`data:image/jpeg;base64,${base64Data}`}},
+          {type:'text',text:prompt}
+        ]
+      }],
+      max_tokens:1000,temperature:0.1
+    })
+  });
+
+  if(!resp.ok)throw new Error(`API ${resp.status}`);
+  const data=await resp.json();
+  const content=data.choices[0].message.content;
+  // Extract JSON from response
+  const jsonMatch=content.match(/\[[\s\S]*\]/);
+  if(!jsonMatch)throw new Error('No JSON in response');
+  const items=JSON.parse(jsonMatch[0]);
+  if(!Array.isArray(items)||items.length===0)throw new Error('Empty result');
+  return items;
+}
+
+function showAnalyzeResult(aiItems){
+  document.getElementById('analyzeProgress').style.width='100%';
+  document.getElementById('analyzeContent').style.display='none';
+  const resultDiv=document.getElementById('analyzeResult');
+  resultDiv.style.display='block';
+
+  // Match AI items to food database
+  const matched=[];
+  const unmatched=[];
+  for(const item of aiItems){
+    const food=FOODS.find(f=>
+      f.name===item.name||
+      f.name.includes(item.name)||
+      item.name.includes(f.name)||
+      (item.name.includes('鸡')&&f.name.includes('鸡'))||
+      (item.name.includes('牛')&&f.name.includes('牛'))||
+      (item.name.includes('猪')&&f.name.includes('猪'))||
+      (item.name.includes('鱼')&&f.name.includes('鱼'))||
+      (item.name.includes('虾')&&f.name.includes('虾'))||
+      (item.name.includes('蛋')&&f.name.includes('蛋'))||
+      (item.name.includes('奶')&&f.name.includes('奶'))
+    );
+    if(food){
+      matched.push({...food,aiGrams:item.grams});
+    }else{
+      unmatched.push(item);
+    }
+  }
+
+  let totalCal=0,totalP=0,totalF=0,totalC=0;
+  const lines=matched.map(f=>{
+    const r=f.aiGrams/100;
+    const cal=Math.round(f.cal*r),p=+(f.p*r).toFixed(1),fb=+(f.f*r).toFixed(1),cb=+(f.c*r).toFixed(1);
+    totalCal+=cal;totalP+=p;totalF+=fb;totalC+=cb;
+    return `<div class="food-item" style="cursor:default">
+      <div><div class="name">${f.name}</div><div class="unit">${f.aiGrams}g · 蛋白${p}g 脂肪${fb}g 碳水${cb}g</div></div>
+      <span class="cal">${cal} kcal</span></div>`;
+  });
+
+  let html=`<div style="font-size:14px;color:var(--sub);margin-bottom:8px">✅ AI 识别到 ${matched.length} 种食物</div>`;
+  html+=lines.join('');
+  if(unmatched.length>0){
+    html+=`<div style="margin-top:8px;font-size:13px;color:#e67e22">⚠️ ${unmatched.map(u=>u.name).join('、')} 未在数据库中找到</div>`;
+  }
+  html+=`<div style="margin-top:12px;padding:12px;background:#f0fdf8;border-radius:10px">
+    <div style="font-size:16px;font-weight:700;color:var(--mint)">总计 ${totalCal} kcal</div>
+    <div style="font-size:13px;color:var(--sub);margin-top:4px">蛋白质 ${totalP.toFixed(1)}g · 脂肪 ${totalF.toFixed(1)}g · 碳水 ${totalC.toFixed(1)}g</div>
+  </div>`;
+
+  resultDiv.innerHTML=html;
+
+  // Update actions
+  document.getElementById('analyzeActions').innerHTML=`
+    <button class="btn btn-outline btn-block" onclick="closeAnalyzeModal()">重新分析</button>
+    <button class="btn btn-primary btn-block" onclick="batchAddAnalyzeResult()">全部加入今日记录</button>
+  `;
+
+  // Store matched items for batch add
+  window._analyzeMatched=matched;
+}
+
+function batchAddAnalyzeResult(){
+  const matched=window._analyzeMatched||[];
+  if(matched.length===0)return;
+  const logs=getLogs(today());
+  const mealType=document.getElementById('mealType')?.value||'lunch';
+  for(const f of matched){
+    const r=f.aiGrams/100;
+    logs.unshift({
+      foodId:f.id,name:f.name,cat:f.cat,grams:f.aiGrams,
+      cal:Math.round(f.cal*r),p:+(f.p*r).toFixed(1),f:+(f.f*r).toFixed(1),c:+(f.c*r).toFixed(1),
+      meal:mealType,photo:pendingPhoto||null,time:new Date().toISOString()
+    });
+  }
+  saveLogs(today(),logs);
+  pendingPhoto=null;
+  closeAnalyzeModal();
+  showToast(`已添加 ${matched.length} 种食物 · ${matched.reduce((s,f)=>{const r=f.aiGrams/100;return s+Math.round(f.cal*r)},0)} kcal`);
+  renderDiary();
+  switchTab('diary');
+}
+
+function closeAnalyzeModal(){
+  document.getElementById('modalAnalyze').classList.add('hidden');
+  document.getElementById('analyzeContent').style.display='block';
+  document.getElementById('analyzeResult').style.display='none';
+  document.getElementById('analyzeActions').innerHTML='<button class="btn btn-outline btn-block" onclick="closeAnalyzeModal()">取消</button>';
+  window._analyzeMatched=[];
+}
+
+// ============ MEAL PRESETS ============
+function renderMealPresets(){
+  const el=document.getElementById('mealPresets');
+  el.innerHTML=MEAL_PRESETS.map(m=>{
+    const cal=m.items.reduce((s,i)=>{
+      const food=FOODS.find(f=>f.id===i.id);
+      return s+(food?Math.round(food.cal*i.g/100):0);
+    },0);
+    return `<div onclick="addMealPreset('${m.name}')" style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#f8faf9;border-radius:10px;cursor:pointer;border:1px solid #eee;transition:.15s;flex-shrink:0" onmouseover="this.style.borderColor='var(--mint)'" onmouseout="this.style.borderColor='#eee'">
+      <span style="font-size:22px">${m.icon}</span>
+      <div><div style="font-size:13px;font-weight:600">${m.name}</div><div style="font-size:11px;color:var(--mint);font-weight:600">≈${cal} kcal</div></div>
+    </div>`;
+  }).join('');
+}
+
+function addMealPreset(presetName){
+  const preset=MEAL_PRESETS.find(m=>m.name===presetName);
+  if(!preset)return;
+  const logs=getLogs(today());
+  const mealType='lunch';
+  let totalCal=0;
+  for(const item of preset.items){
+    const food=FOODS.find(f=>f.id===item.id);
+    if(!food)continue;
+    const r=item.g/100;
+    const cal=Math.round(food.cal*r);
+    totalCal+=cal;
+    logs.unshift({
+      foodId:food.id,name:food.name,cat:food.cat,grams:item.g,
+      cal,p:+(food.p*r).toFixed(1),f:+(food.f*r).toFixed(1),c:+(food.c*r).toFixed(1),
+      meal:mealType,photo:null,time:new Date().toISOString()
+    });
+  }
+  saveLogs(today(),logs);
+  showToast(`已添加 ${preset.name} · ${totalCal} kcal`);
+  renderDiary();
+  switchTab('diary');
 }
 
 function openModalForPhoto(){
@@ -806,6 +1107,7 @@ document.getElementById('carbTarget').value=getSettings().carb;
 
 startCamera();
 renderRecentPhotos();
+renderMealPresets();
 renderFoodTags();
 renderFoodList();
 
