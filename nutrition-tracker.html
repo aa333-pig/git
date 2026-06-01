@@ -648,7 +648,7 @@ async function analyzePhoto(){
   try{
     // Step 1: compress
     updateAnalyzeUI('压缩图片中…',15);
-    const compressed=await compressImage(pendingPhoto,320,0.4);
+    const compressed=await compressImage(pendingPhoto,640,0.6);
 
     // Step 2: send to API via proxy (/api/analyze)
     updateAnalyzeUI('AI 分析中…',30);
@@ -682,7 +682,32 @@ function updateAnalyzeUI(msg,pct){
 }
 
 async function aiRecognize(photoBase64){
-  const prompt='Analyze this food photo. Return ONLY JSON:\n{"dish":"dish name in Chinese","total_cal":number,"protein":number,"fat":number,"carbs":number,"items":[{"name":"ingredient","grams":number,"cal":number,"protein":number,"fat":number,"carbs":number}]}';
+  const prompt=`你是一个专业营养分析师。请仔细分析这张食物图片。
+
+要求：
+1. 识别图片中所有可见的食物和食材
+2. 估算每种食材的可食用部分克数(以常见份量为准)
+3. 根据克数计算每种食材的热量和营养素
+4. 计算整道菜的总热量和总营养素
+
+严格按以下JSON格式返回，不要加任何其他内容：
+{
+  "dish":"这道菜的准确名称",
+  "total_cal":总热量千卡,
+  "protein":总蛋白质克数,
+  "fat":总脂肪克数,
+  "carbs":总碳水克数,
+  "items":[
+    {"name":"食材名","grams":克数,"cal":该食材热量千卡,"protein":该食材蛋白质克,"fat":该食材脂肪克,"carbs":该食材碳水克}
+  ]
+}
+
+注意事项：
+- 食材名称使用中文，尽可能具体(如"鸭腿"而非"鸭肉"，"白米饭"而非"主食")
+- 克数按常见外卖/食堂份量估算，不要过于保守
+- 如果盘中有汤汁、酱料、油等也要计算进去
+- total_cal必须等于所有items的cal之和
+- 如有配菜(蔬菜、鸡蛋等)不要遗漏`;
 
   // Use Anthropic Messages format (DeepSeek Anthropic-compatible endpoint supports vision)
   const base64Data=photoBase64.split(',')[1]||photoBase64;
