@@ -634,96 +634,87 @@ async function analyzePhoto(){
   document.getElementById('analyzeActions').innerHTML='<button class="btn btn-outline btn-block" onclick="closeAnalyzeModal()">取消分析</button>';
 
   content.innerHTML=`
-    <div style="margin-bottom:16px;border-radius:12px;overflow:hidden;max-height:180px">
-      <img src="${pendingPhoto}" style="width:100%;height:180px;object-fit:cover;display:block">
+    <div style="margin-bottom:12px;border-radius:12px;overflow:hidden;max-height:150px">
+      <img src="${pendingPhoto}" style="width:100%;height:150px;object-fit:cover;display:block">
     </div>
-    <div style="text-align:center;padding:12px 0">
-      <div style="font-size:36px;margin-bottom:6px">🔍</div>
-      <div style="font-size:13px;color:var(--sub);margin-bottom:6px" id="analyzeStatus">正在压缩图片…</div>
-      <div style="height:4px;background:#eee;border-radius:2px;overflow:hidden">
-        <div id="analyzeProgress" style="height:100%;width:5%;background:var(--mint);border-radius:2px;transition:.3s"></div>
+    <div style="text-align:center;padding:10px 0">
+      <div style="font-size:32px;margin-bottom:4px">🔍</div>
+      <div style="font-size:13px;color:var(--sub)" id="analyzeStatus">正在压缩图片…</div>
+      <div style="height:4px;background:#eee;border-radius:2px;overflow:hidden;margin-top:8px">
+        <div id="analyzeProgress" style="height:100%;width:3%;background:var(--mint);border-radius:2px;transition:.3s"></div>
       </div>
     </div>`;
 
   try{
-    // Compress image significantly before sending
+    // Step 1: compress
+    updateAnalyzeUI('压缩图片中…',15);
     const compressed=await compressImage(pendingPhoto,512,0.5);
-    const items=await aiRecognize(compressed);
-    showAnalyzeResult(items);
+
+    // Step 2: send to API via proxy (/api/analyze)
+    updateAnalyzeUI('AI 分析中…',30);
+    const result2=await aiRecognize(compressed);
+
+    // Step 3: show result
+    updateAnalyzeUI('完成',100);
+    showAnalyzeResult(result2);
   }catch(e){
-    const errMsg=e.message||String(e);
-    console.error('AI failed:',errMsg);
-    // Show more helpful error
-    let help='';
-    if(errMsg.includes('Failed to fetch')||errMsg.includes('NetworkError')){
-      help='请先在终端运行 node server.js 启动本地服务';
-    }else if(errMsg.includes('429')){
-      help='API 请求过于频繁，请稍后再试';
-    }else if(errMsg.includes('401')||errMsg.includes('403')){
-      help='API 密钥失效';
-    }else{
-      help='错误详情: '+errMsg.substring(0,60);
-    }
+    let detail=String(e.message||e).substring(0,120);
+    console.error(detail);
     content.innerHTML=`
-      <div style="margin-bottom:12px;border-radius:12px;overflow:hidden;max-height:160px">
-        <img src="${pendingPhoto}" style="width:100%;height:160px;object-fit:cover;display:block">
+      <div style="margin-bottom:8px;border-radius:12px;overflow:hidden;max-height:120px">
+        <img src="${pendingPhoto}" style="width:100%;height:120px;object-fit:cover;display:block">
       </div>
-      <div style="text-align:center;padding:12px 0">
-        <div style="font-size:36px;margin-bottom:6px">⚠️</div>
-        <div style="font-size:14px;margin-bottom:4px">AI 分析暂不可用</div>
-        <div style="font-size:11px;color:var(--sub);margin-bottom:10px">${help}</div>
-        <button class="btn btn-primary" onclick="closeAnalyzeModal();openModalForPhoto()" style="margin-bottom:6px">手动搜索食物库</button>
-        <button class="btn btn-outline btn-block" onclick="closeAnalyzeModal();addMealPreset('鸭腿饭')" style="font-size:13px">👉 直接使用套餐模板（鸭腿饭等）</button>
+      <div style="text-align:center;padding:8px 0">
+        <div style="font-size:28px;margin-bottom:4px">⚠️</div>
+        <div style="font-size:13px;margin-bottom:4px">AI 分析失败</div>
+        <div style="font-size:10px;color:#999;margin-bottom:8px;word-break:break-all;max-height:60px;overflow:auto">${detail}</div>
+        <button class="btn btn-primary" onclick="closeAnalyzeModal();openModalForPhoto()" style="margin-bottom:4px;font-size:13px">手动搜索食物库</button>
+        <button class="btn btn-outline btn-block" onclick="closeAnalyzeModal();addMealPreset('鸭腿饭')" style="font-size:12px">🍗 快捷添加套餐（鸭腿饭等）</button>
       </div>`;
   }
 }
 
-async function aiRecognize(photoBase64){
-  const prog=document.getElementById('analyzeProgress');
-  const stat=document.getElementById('analyzeStatus');
-  if(prog)prog.style.width='20%';
-  if(stat)stat.textContent='正在连接 AI 服务…';
+function updateAnalyzeUI(msg,pct){
+  const s=document.getElementById('analyzeStatus');
+  const p=document.getElementById('analyzeProgress');
+  if(s)s.textContent=msg;
+  if(p)p.style.width=pct+'%';
+}
 
-  const prompt='分析这张食物图片。识别图中所有食物,直接返回JSON。\n{"dish":"菜名","total_cal":总热量,"protein":蛋白质g,"fat":脂肪g,"carbs":碳水g,"items":[{"name":"食材","grams":克数,"cal":热量,"protein":蛋白g,"fat":脂肪g,"carbs":碳水g}]}';
+async function aiRecognize(photoBase64){
+  const prompt='Analyze this food photo. Return ONLY JSON:\n{"dish":"dish name in Chinese","total_cal":number,"protein":number,"fat":number,"carbs":number,"items":[{"name":"ingredient","grams":number,"cal":number,"protein":number,"fat":number,"carbs":number}]}';
 
   const base64Data=photoBase64.split(',')[1]||photoBase64;
   const payload={model:'deepseek-chat',messages:[{role:'user',content:[{type:'image_url',image_url:{url:`data:image/jpeg;base64,${base64Data}`}},{type:'text',text:prompt}]}],max_tokens:1200,temperature:0.1};
 
-  // Always use local proxy (works with file://, localhost, LAN IP)
-  // If proxy unreachable, fall back to direct API (may fail on CORS in browser)
-  const isFile=location.protocol==='file:';
-  const useProxy=isFile||location.hostname==='localhost'||location.hostname.startsWith('192.168.')||location.hostname.startsWith('10.');
-  const API_URL=useProxy?'http://localhost:3456/api/analyze':'https://api.deepseek.com/chat/completions';
-  const headers={'Content-Type':'application/json'};
-  if(!useProxy)headers['Authorization']='Bearer sk-a8e9984b0ecd4995922cf3bb616d43b5';
-
-  if(prog)prog.style.width='40%';
-  if(stat)stat.textContent='AI 正在分析图片…';
-
-  // 60s timeout for vision analysis (images take time)
+  // Use relative URL — works on any origin
+  const API='/api/analyze';
   const ctrl=new AbortController();
-  const timer=setTimeout(()=>ctrl.abort(),60000);
-  const resp=await fetch(API_URL,{
-    method:'POST',headers,
-    body:JSON.stringify(isLocal?payload:{...payload}),
+  const timer=setTimeout(()=>ctrl.abort(),90000);
+
+  updateAnalyzeUI('等待 AI 响应…',50);
+
+  const resp=await fetch(API,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify(payload),
     signal:ctrl.signal
   });
   clearTimeout(timer);
 
   if(!resp.ok){
-    const errText=await resp.text().catch(()=>'');
-    throw new Error(`${resp.status} ${errText.substring(0,50)}`);
+    const txt=await resp.text().catch(()=>'');
+    throw new Error(`服务器错误 ${resp.status}: ${txt.substring(0,60)}`);
   }
-  const data=await resp.json();
-  if(prog)prog.style.width='85%';
-  if(stat)stat.textContent='解析结果…';
 
+  updateAnalyzeUI('解析结果…',85);
+
+  const data=await resp.json();
+  if(!data.choices||!data.choices[0])throw new Error('API 返回异常');
   const content=data.choices[0].message.content;
   const jsonMatch=content.match(/\{[\s\S]*\}/);
-  if(!jsonMatch)throw new Error('AI 返回格式异常');
-  const parsed=JSON.parse(jsonMatch[0]);
-  if(!parsed.items||!Array.isArray(parsed.items))throw new Error('AI 未识别到食物');
-  return parsed;
+  if(!jsonMatch)throw new Error('AI 未返回识别结果');
+  return JSON.parse(jsonMatch[0]);
 }
 
 function showAnalyzeResult(aiResult){
@@ -1109,15 +1100,17 @@ document.addEventListener('keydown',e=>{
   if(e.key==='ArrowRight'&&idx<tabs.length-1)switchTab(tabs[idx+1]);
 });
 
-// Check server connection
+// Check server connection on load
 (async function checkConn(){
   const el=document.getElementById('connStatus');
   if(!el)return;
   try{
-    const r=await fetch('http://localhost:3456/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'deepseek-chat',messages:[{role:'user',content:'ok'}],max_tokens:1})});
-    if(r.ok){el.textContent='AI 已连接';el.style.background='#eafaf1';el.style.color='#27ae60';return}
+    const r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'deepseek-chat',messages:[{role:'user',content:'ok'}],max_tokens:1})});
+    if(r.ok||r.status===400){
+      el.textContent='✅ AI 就绪';el.style.background='#eafaf1';el.style.color='#27ae60';return;
+    }
   }catch(e){}
-  el.textContent='离线模式';el.style.background='#fef9e7';el.style.color='#e67e22';
+  el.textContent='⚡ 离线模式';el.style.background='#fef9e7';el.style.color='#e67e22';
 })();
 
 // ============ INIT ============
