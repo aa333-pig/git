@@ -656,7 +656,7 @@ async function analyzePhoto(){
     // Show more helpful error
     let help='';
     if(errMsg.includes('Failed to fetch')||errMsg.includes('NetworkError')){
-      help='CORS 跨域限制，请通过 HTTPS 访问（GitHub Pages）';
+      help='请先在终端运行 node server.js 启动本地服务';
     }else if(errMsg.includes('429')){
       help='API 请求过于频繁，请稍后再试';
     }else if(errMsg.includes('401')||errMsg.includes('403')){
@@ -689,11 +689,13 @@ async function aiRecognize(photoBase64){
   const base64Data=photoBase64.split(',')[1]||photoBase64;
   const payload={model:'deepseek-chat',messages:[{role:'user',content:[{type:'image_url',image_url:{url:`data:image/jpeg;base64,${base64Data}`}},{type:'text',text:prompt}]}],max_tokens:1200,temperature:0.1};
 
-  // Use local proxy if running from localhost, otherwise direct API
-  const isLocal=location.hostname==='localhost'||location.hostname.startsWith('192.168.')||location.hostname.startsWith('10.')||location.hostname.startsWith('172.');
-  const API_URL=isLocal?'/api/analyze':'https://api.deepseek.com/chat/completions';
+  // Always use local proxy (works with file://, localhost, LAN IP)
+  // If proxy unreachable, fall back to direct API (may fail on CORS in browser)
+  const isFile=location.protocol==='file:';
+  const useProxy=isFile||location.hostname==='localhost'||location.hostname.startsWith('192.168.')||location.hostname.startsWith('10.');
+  const API_URL=useProxy?'http://localhost:3456/api/analyze':'https://api.deepseek.com/chat/completions';
   const headers={'Content-Type':'application/json'};
-  if(!isLocal)headers['Authorization']='Bearer sk-a8e9984b0ecd4995922cf3bb616d43b5';
+  if(!useProxy)headers['Authorization']='Bearer sk-a8e9984b0ecd4995922cf3bb616d43b5';
 
   if(prog)prog.style.width='40%';
   if(stat)stat.textContent='AI 正在分析图片…';
