@@ -205,7 +205,7 @@ body{
 <div class="app" id="app">
   <!-- Tab 1: Camera -->
   <div class="page active" id="pageCamera">
-    <div class="header"><h1>📸 营养拍</h1></div>
+    <div class="header"><h1>📸 营养拍</h1><span id="connStatus" style="font-size:10px;padding:2px 8px;border-radius:10px;background:#eee;color:#999">检测中</span></div>
     <div class="camera-container" id="cameraBox">
       <video id="video" autoplay playsinline muted></video>
       <div class="overlay"></div>
@@ -700,10 +700,15 @@ async function aiRecognize(photoBase64){
   if(prog)prog.style.width='40%';
   if(stat)stat.textContent='AI 正在分析图片…';
 
+  // 60s timeout for vision analysis (images take time)
+  const ctrl=new AbortController();
+  const timer=setTimeout(()=>ctrl.abort(),60000);
   const resp=await fetch(API_URL,{
     method:'POST',headers,
-    body:JSON.stringify(isLocal?payload:{...payload})
+    body:JSON.stringify(isLocal?payload:{...payload}),
+    signal:ctrl.signal
   });
+  clearTimeout(timer);
 
   if(!resp.ok){
     const errText=await resp.text().catch(()=>'');
@@ -1103,6 +1108,17 @@ document.addEventListener('keydown',e=>{
   if(e.key==='ArrowLeft'&&idx>0)switchTab(tabs[idx-1]);
   if(e.key==='ArrowRight'&&idx<tabs.length-1)switchTab(tabs[idx+1]);
 });
+
+// Check server connection
+(async function checkConn(){
+  const el=document.getElementById('connStatus');
+  if(!el)return;
+  try{
+    const r=await fetch('http://localhost:3456/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'deepseek-chat',messages:[{role:'user',content:'ok'}],max_tokens:1})});
+    if(r.ok){el.textContent='AI 已连接';el.style.background='#eafaf1';el.style.color='#27ae60';return}
+  }catch(e){}
+  el.textContent='离线模式';el.style.background='#fef9e7';el.style.color='#e67e22';
+})();
 
 // ============ INIT ============
 document.getElementById('portionInput').addEventListener('input',updatePreview);
