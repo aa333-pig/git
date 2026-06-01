@@ -31,9 +31,11 @@ const server = http.createServer((req, res) => {
 
   // Proxy /api to DeepSeek
   if (req.url === '/api/analyze' && req.method === 'POST') {
+    console.log(`[API] receiving request...`);
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', () => {
+      console.log(`[API] body: ${(body.length/1024).toFixed(0)}KB`);
       try {
         const { model, messages, max_tokens, temperature } = JSON.parse(body);
         const payload = JSON.stringify({ model, messages, max_tokens, temperature });

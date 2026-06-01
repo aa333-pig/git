@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>杭州师范大学</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #333; line-height: 1.8; }
+  .hero { background: linear-gradient(135deg, #1a5276 0%, #2e86c1 50%, #3498db 100%); color: #fff; text-align: center; padding: 80px 20px 60px; }
+  .hero h1 { font-size: 3em; letter-spacing: 6px; margin-bottom: 12px; }
+  .hero .en { font-size: 1.1em; opacity: .85; letter-spacing: 2px; margin-bottom: 20px; }
+  .hero .motto { display: inline-block; border: 1px solid rgba(255,255,255,.4); padding: 8px 28px; border-radius: 30px; letter-spacing: 8px; font-size: 1.1em; }
+  .nav { background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.08); position: sticky; top: 0; z-index: 10; display: flex; justify-content: center; gap: 40px; padding: 14px 0; }
+  .nav a { text-decoration: none; color: #555; font-size: .95em; padding: 4px 0; border-bottom: 2px solid transparent; transition: .2s; }
+  .nav a:hover { color: #2e86c1; border-bottom-color: #2e86c1; }
+  .section { max-width: 960px; margin: 0 auto; padding: 60px 20px; }
+  .section h2 { font-size: 1.8em; color: #1a5276; text-align: center; margin-bottom: 10px; }
+  .section .line { width: 60px; height: 3px; background: #2e86c1; margin: 0 auto 36px; border-radius: 2px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+  .card { background: #f8fafc; border-radius: 10px; padding: 28px 24px; border-left: 4px solid #2e86c1; transition: .2s; }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 6px 20px rgba(0,0,0,.08); }
+  .card h3 { color: #1a5276; margin-bottom: 10px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; text-align: center; }
+  .stat { background: #f0f6fb; border-radius: 10px; padding: 28px 12px; }
+  .stat .num { font-size: 2em; font-weight: 700; color: #2e86c1; }
+  .stat .label { color: #777; margin-top: 6px; font-size: .9em; }
+  .timeline { position: relative; padding-left: 30px; }
+  .timeline::before { content: ''; position: absolute; left: 8px; top: 4px; bottom: 4px; width: 3px; background: #d5e5f2; border-radius: 2px; }
+  .timeline-item { margin-bottom: 20px; position: relative; }
+  .timeline-item::before { content: ''; position: absolute; left: -26px; top: 8px; width: 10px; height: 10px; border-radius: 50%; background: #2e86c1; border: 2px solid #fff; box-shadow: 0 0 0 2px #2e86c1; }
+  .timeline-item .year { font-weight: 700; color: #2e86c1; }
+  .footer { background: #1a5276; color: rgba(255,255,255,.75); text-align: center; padding: 28px; font-size: .85em; }
+  @media (max-width: 640px) {
+    .hero h1 { font-size: 2em; }
+    .nav { gap: 16px; padding: 10px; font-size: .85em; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>杭州师范大学</h1>
+  <div class="en">Hangzhou Normal University</div>
+  <div class="motto">勤慎诚恕 · 博雅精进</div>
+</div>
+
+<nav class="nav">
+  <a href="#overview">学校概况</a>
+  <a href="#history">历史沿革</a>
+  <a href="#strength">办学实力</a>
+  <a href="#campus">校园风光</a>
+  <a href="#talent">人才培养</a>
+</nav>
+
+<div class="section" id="overview">
+  <h2>学校概况</h2>
+  <div class="line"></div>
+  <p>杭州师范大学是浙江省重点建设高校，坐落于风景秀丽的历史文化名城杭州。学校前身可追溯至1908年创建的浙江官立两级师范学堂，是中国最早建立的六大高等师范学堂之一。1978年经国务院批准建立杭州师范学院，2007年更名为杭州师范大学。</p>
+  <br>
+  <p>学校现有仓前、玉皇山、下沙三个校区，占地面积约3000亩。设有23个学院（部），拥有1家直属附属医院和15家非直属附属医院。现有全日制在校生约31000人，教职工2600余人，其中专任教师1900余人，高级职称占比超60%，博士学位教师占比超75%。</p>
+</div>
+
+<div class="section" id="history">
+  <h2>历史沿革</h2>
+  <div class="line"></div>
+  <div class="timeline">
+    <div class="timeline-item"><span class="year">1908年</span> — 浙江官立两级师范学堂创建，鲁迅、李叔同、夏丏尊等曾在此任教</div>
+    <div class="timeline-item"><span class="year">1913年</span> — 更名为浙江省立第一师范学校</div>
+    <div class="timeline-item"><span class="year">1978年</span> — 国务院批准建立杭州师范学院</div>
+    <div class="timeline-item"><span class="year">2007年</span> — 经教育部批准更名为杭州师范大学</div>
+    <div class="timeline-item"><span class="year">2017年</span> — 入选浙江省重点建设高校</div>
+    <div class="timeline-item"><span class="year">2022年</span> — 入选浙江省"双一流196工程"</div>
+  </div>
+</div>
+
+<div class="section" id="strength">
+  <h2>办学实力</h2>
+  <div class="line"></div>
+  <div class="stats">
+    <div class="stat"><div class="num">92</div><div class="label">本科专业</div></div>
+    <div class="stat"><div class="num">24</div><div class="label">一级学科硕士点</div></div>
+    <div class="stat"><div class="num">6</div><div class="label">一级学科博士点</div></div>
+    <div class="stat"><div class="num">13</div><div class="label">ESI全球前1%学科</div></div>
+  </div>
+  <br><br>
+  <div class="cards">
+    <div class="card"><h3>一流学科</h3><p>生物学、教育学为省登峰学科，化学、数学、临床医学等6个学科入选省一流学科A类。化学、临床医学、植物与动物学、工程学等13个学科进入ESI全球前1%。</p></div>
+    <div class="card"><h3>科研平台</h3><p>拥有教育部重点实验室、省重点实验室、省工程研究中心等省部级以上科研平台40余个，含有机硅化学及材料技术教育部重点实验室。</p></div>
+    <div class="card"><h3>师资力量</h3><p>拥有全职院士2人，共享院士6人，教育部长江学者特聘教授、国家杰出青年科学基金获得者等国家级人才40余人次。</p></div>
+  </div>
+</div>
+
+<div class="section" id="campus">
+  <h2>校园与生活</h2>
+  <div class="line"></div>
+  <div class="cards">
+    <div class="card"><h3>仓前校区</h3><p>主校区，位于杭州城西科创大走廊核心区，毗邻西溪湿地与未来科技城，占地约2200亩，现代化建筑群与江南水乡景观融合。</p></div>
+    <div class="card"><h3>玉皇山校区</h3><p>坐落于西湖风景名胜区玉皇山南麓，环境清幽，主要承担继续教育及部分艺术类专业教学。</p></div>
+    <div class="card"><h3>下沙校区</h3><p>位于钱塘区高教园区，紧邻钱塘江，拥有附属医院和完备的医学教学设施，是医学类专业的主要教学基地。</p></div>
+  </div>
+</div>
+
+<div class="section" id="talent">
+  <h2>人才培养</h2>
+  <div class="line"></div>
+  <div class="cards">
+    <div class="card"><h3>师范教育</h3><p>百年师范传统，涵盖学前教育到中学教育全学段，师范生占比超30%，是浙江省中小学教师培养的核心基地。</p></div>
+    <div class="card"><h3>创新创业</h3><p>国家级创新创业学院建设单位，毕业生就业率连续多年保持在96%以上。校友马云等为代表的一批企业家从这里起步。</p></div>
+    <div class="card"><h3>国际合作</h3><p>与30多个国家和地区的100余所高校建立合作关系，开设中外合作办学项目4个，建有2所孔子学院。</p></div>
+  </div>
+</div>
+
+<div class="section" style="text-align:center; padding-top: 20px;">
+  <p style="color:#777;">百年学府 · 人文杭师 · 诚恕博雅 · 薪火相传</p>
+</div>
+
+<div class="footer">
+  杭州师范大学 &copy; 2026 &nbsp;|&nbsp; 浙江省杭州市余杭塘路2318号（仓前校区）
+</div>
+
+</body>
+</html>

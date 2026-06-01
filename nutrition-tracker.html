@@ -648,7 +648,7 @@ async function analyzePhoto(){
   try{
     // Step 1: compress
     updateAnalyzeUI('压缩图片中…',15);
-    const compressed=await compressImage(pendingPhoto,512,0.5);
+    const compressed=await compressImage(pendingPhoto,320,0.4);
 
     // Step 2: send to API via proxy (/api/analyze)
     updateAnalyzeUI('AI 分析中…',30);

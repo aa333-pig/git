@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>每日健身记录</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", sans-serif; background: #f0f2f5; color: #333; min-height: 100vh; }
+  .container { max-width: 500px; margin: 0 auto; padding: 16px; }
+
+  .header { background: linear-gradient(135deg, #2c3e50, #3498db); color: #fff; text-align: center; padding: 28px 16px; border-radius: 14px; margin-bottom: 16px; }
+  .header h1 { font-size: 1.5em; letter-spacing: 2px; }
+  .header .streak { margin-top: 6px; opacity: .85; font-size: .9em; }
+
+  .date-bar { display: flex; align-items: center; justify-content: space-between; background: #fff; padding: 12px 16px; border-radius: 10px; margin-bottom: 14px; }
+  .date-bar button { background: #e8f0fe; border: none; padding: 6px 12px; border-radius: 6px; font-size: 1.1em; cursor: pointer; color: #3498db; }
+  .date-bar .date { font-weight: 600; font-size: 1em; }
+
+  .card { background: #fff; border-radius: 12px; padding: 18px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+  .card h3 { font-size: 1em; margin-bottom: 14px; color: #2c3e50; }
+
+  .form-row { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .form-row.single { flex-wrap: nowrap; }
+  .form-group { display: flex; flex-direction: column; gap: 4px; }
+  .form-group label { font-size: .8em; color: #888; }
+  .form-group input, .form-group select { padding: 10px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: .9em; outline: none; transition: .2s; font-family: inherit; }
+  .form-group input:focus, .form-group select:focus { border-color: #3498db; }
+  .form-group.w30 { flex: 1; min-width: 70px; }
+  .form-group.w50 { flex: 1; min-width: 100px; }
+  .form-group.w100 { flex: 2; min-width: 120px; }
+
+  .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: .9em; cursor: pointer; font-weight: 600; transition: .2s; font-family: inherit; }
+  .btn-primary { background: #3498db; color: #fff; width: 100%; padding: 12px; font-size: 1em; }
+  .btn-primary:hover { background: #2980b9; }
+  .btn-danger { background: #fff; color: #e74c3c; border: 1px solid #e74c3c; padding: 4px 10px; font-size: .8em; }
+  .btn-danger:hover { background: #e74c3c; color: #fff; }
+
+  .exercise-list { margin-top: 12px; }
+  .exercise-item { display: flex; align-items: center; justify-content: space-between; background: #f8fafc; padding: 10px 12px; border-radius: 8px; margin-bottom: 6px; }
+  .exercise-item .info { flex: 1; }
+  .exercise-item .name { font-weight: 600; font-size: .9em; }
+  .exercise-item .detail { color: #888; font-size: .8em; margin-top: 2px; }
+
+  .workout-day { margin-bottom: 6px; }
+  .workout-day .day-header { font-size: .85em; color: #888; padding: 8px 4px 4px; font-weight: 600; }
+  .workout-entry { background: #fff; border-radius: 8px; padding: 12px 14px; margin-bottom: 4px; border-left: 3px solid #3498db; }
+  .workout-entry .ex-row { display: flex; justify-content: space-between; font-size: .85em; padding: 2px 0; }
+  .workout-entry .ex-name { font-weight: 600; }
+  .workout-entry .ex-detail { color: #777; }
+
+  .empty { text-align: center; padding: 40px; color: #bbb; }
+  .tab-bar { display: flex; background: #fff; border-radius: 10px; margin-bottom: 14px; overflow: hidden; }
+  .tab-bar button { flex: 1; border: none; background: #fff; padding: 12px; font-size: .9em; cursor: pointer; transition: .2s; font-family: inherit; border-bottom: 2px solid transparent; }
+  .tab-bar button.active { color: #3498db; border-bottom-color: #3498db; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>每日健身记录</h1>
+    <div class="streak" id="streakDisplay">加载中…</div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="active" onclick="switchTab('record')">记录训练</button>
+    <button onclick="switchTab('history')">历史记录</button>
+  </div>
+
+  <!-- Record Tab -->
+  <div id="tabRecord">
+    <div class="date-bar">
+      <button onclick="changeDate(-1)">◀</button>
+      <span class="date" id="selectedDate"></span>
+      <button onclick="changeDate(1)">▶</button>
+      <button onclick="setToday()" style="font-size:.8em;">今天</button>
+    </div>
+
+    <div class="card">
+      <h3>添加训练动作</h3>
+      <div class="form-row">
+        <div class="form-group w50">
+          <label>动作名称</label>
+          <select id="exerciseName">
+            <option value="卧推">卧推</option><option value="深蹲">深蹲</option><option value="硬拉">硬拉</option>
+            <option value="引体向上">引体向上</option><option value="划船">划船</option><option value="推举">推举</option>
+            <option value="弯举">弯举</option><option value="臂屈伸">臂屈伸</option><option value="卷腹">卷腹</option>
+            <option value="平板支撑">平板支撑</option><option value="跑步">跑步</option><option value="跳绳">跳绳</option>
+            <option value="骑行">骑行</option><option value="游泳">游泳</option><option value="自定义">自定义</option>
+          </select>
+        </div>
+        <div class="form-group w30">
+          <label>重量(kg)</label>
+          <input type="number" id="exerciseWeight" placeholder="0" min="0" step="0.5">
+        </div>
+        <div class="form-group w30">
+          <label>组数</label>
+          <input type="number" id="exerciseSets" placeholder="1" min="1" value="3">
+        </div>
+        <div class="form-group w30">
+          <label>次数</label>
+          <input type="number" id="exerciseReps" placeholder="12" min="1" value="12">
+        </div>
+        <button class="btn btn-primary" style="width:auto;flex:0 0 auto;margin-top:18px;padding:10px 16px;" onclick="addExercise()">+ 添加</button>
+      </div>
+
+      <div class="exercise-list" id="tempExercises"></div>
+
+      <div style="margin-top:12px;">
+        <label style="font-size:.8em;color:#888;display:block;margin-bottom:4px;">训练备注</label>
+        <input type="text" id="workoutNote" placeholder="今天的感受…" style="width:100%;padding:10px 12px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:.9em;outline:none;font-family:inherit;">
+      </div>
+      <button class="btn btn-primary" style="margin-top:14px;" onclick="saveWorkout()">保存今日训练</button>
+    </div>
+  </div>
+
+  <!-- History Tab -->
+  <div id="tabHistory" style="display:none;">
+    <div class="card" id="historyContent"></div>
+  </div>
+
+</div>
+
+<script>
+const STORAGE_KEY = 'fitness_tracker_data';
+
+let selectedDate = new Date().toISOString().split('T')[0];
+let tempExercises = [];
+
+function getData() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch(e) { return {}; }
+}
+function saveData(data) { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+function loadDateExercises() {
+  const data = getData();
+  return data[selectedDate] || [];
+}
+
+function saveDateExercises(exercises) {
+  const data = getData();
+  if (exercises.length === 0) {
+    delete data[selectedDate];
+  } else {
+    data[selectedDate] = exercises;
+  }
+  saveData(data);
+}
+
+function formatDate(d) { const [y,m,dd] = d.split('-'); return `${y}年${parseInt(m)}月${parseInt(dd)}日`; }
+function getWeekDay(d) { const w = ['周日','周一','周二','周三','周四','周五','周六']; return w[new Date(d).getDay()]; }
+
+function changeDate(offset) {
+  const dt = new Date(selectedDate);
+  dt.setDate(dt.getDate() + offset);
+  selectedDate = dt.toISOString().split('T')[0];
+  refreshRecordTab();
+}
+function setToday() { selectedDate = new Date().toISOString().split('T')[0]; refreshRecordTab(); }
+
+function addExercise() {
+  const nameEl = document.getElementById('exerciseName');
+  const name = nameEl.value === '自定义' ? prompt('输入动作名称:') : nameEl.value;
+  if (!name) return;
+  const weight = parseFloat(document.getElementById('exerciseWeight').value) || 0;
+  const sets = parseInt(document.getElementById('exerciseSets').value) || 0;
+  const reps = parseInt(document.getElementById('exerciseReps').value) || 0;
+  if (sets <= 0 && reps <= 0 && weight <= 0) return;
+
+  tempExercises.push({ name, weight, sets, reps });
+  document.getElementById('exerciseWeight').value = '';
+  document.getElementById('exerciseSets').value = '3';
+  document.getElementById('exerciseReps').value = '12';
+  document.getElementById('exerciseName').value = '卧推';
+  renderTempExercises();
+}
+
+function removeTempExercise(idx) { tempExercises.splice(idx, 1); renderTempExercises(); }
+
+function renderTempExercises() {
+  const el = document.getElementById('tempExercises');
+  if (tempExercises.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = tempExercises.map((e,i) => `
+    <div class="exercise-item">
+      <div class="info">
+        <div class="name">${e.name}</div>
+        <div class="detail">${e.weight > 0 ? e.weight + 'kg ×' : ''} ${e.sets}组 × ${e.reps}次</div>
+      </div>
+      <button class="btn btn-danger" onclick="removeTempExercise(${i})">删除</button>
+    </div>
+  `).join('');
+}
+
+function saveWorkout() {
+  const note = document.getElementById('workoutNote').value.trim();
+  const existing = loadDateExercises();
+  if (tempExercises.length === 0 && existing.length === 0) { alert('请先添加训练动作'); return; }
+
+  const session = { exercises: [...tempExercises], note, time: new Date().toISOString() };
+  const all = loadDateExercises();
+  all.push(session);
+  saveDateExercises(all);
+
+  tempExercises = [];
+  document.getElementById('workoutNote').value = '';
+  renderTempExercises();
+  refreshRecordTab();
+  updateStreak();
+  showToast('训练已保存');
+}
+
+function refreshRecordTab() {
+  document.getElementById('selectedDate').textContent = formatDate(selectedDate) + ' ' + getWeekDay(selectedDate);
+  const sessions = loadDateExercises();
+  document.getElementById('tempExercises').innerHTML = '';
+  tempExercises = [];
+
+  // Show existing sessions for today
+  const container = document.getElementById('tempExercises').parentElement;
+  let oldSummary = document.getElementById('todaySummary');
+  if (oldSummary) oldSummary.remove();
+
+  if (sessions.length > 0) {
+    const div = document.createElement('div');
+    div.id = 'todaySummary';
+    div.style.cssText = 'margin-bottom:12px;padding:10px 12px;background:#eaf7ea;border-radius:8px;font-size:.85em;color:#27ae60;';
+    const totalExercises = sessions.reduce((sum, s) => sum + s.exercises.length, 0);
+    div.textContent = `今日已记录 ${sessions.length} 组训练，共 ${totalExercises} 个动作`;
+    container.insertBefore(div, document.getElementById('tempExercises'));
+  }
+}
+
+function renderHistory() {
+  const data = getData();
+  const dates = Object.keys(data).sort().reverse();
+  const el = document.getElementById('historyContent');
+
+  if (dates.length === 0) {
+    el.innerHTML = '<div class="empty">暂无记录<br>开始你的第一次训练吧</div>';
+    return;
+  }
+
+  el.innerHTML = dates.map(date => {
+    const sessions = data[date];
+    const totalEx = sessions.reduce((s, ses) => s + ses.exercises.length, 0);
+    const totalSets = sessions.reduce((s, ses) => s + ses.exercises.reduce((ss, ex) => ss + ex.sets, 0), 0);
+    return `<div class="workout-day">
+      <div class="day-header">${formatDate(date)} ${getWeekDay(date)} · ${sessions.length}组训练 · ${totalEx}个动作 · ${totalSets}总组数</div>
+      ${sessions.map(ses => `
+        <div class="workout-entry">
+          ${ses.exercises.map(e => `
+            <div class="ex-row"><span class="ex-name">${e.name}</span><span class="ex-detail">${e.weight > 0 ? e.weight + 'kg ×' : ''} ${e.sets}组 × ${e.reps}次</span></div>
+          `).join('')}
+          ${ses.note ? `<div style="font-size:.8em;color:#999;margin-top:4px;">备注：${ses.note}</div>` : ''}
+        </div>
+      `).join('')}
+    </div>`;
+  }).join('');
+
+  // Attach delete handlers
+  el.querySelectorAll('.workout-day').forEach(dayEl => {
+    const dateText = dayEl.querySelector('.day-header').textContent;
+    const match = dateText.match(/(\d{4})年(\d+)月(\d+)日/);
+    if (!match) return;
+    const dateKey = `${match[1]}-${String(match[2]).padStart(2,'0')}-${String(match[3]).padStart(2,'0')}`;
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn btn-danger';
+    delBtn.textContent = '删除当日';
+    delBtn.style.marginLeft = '8px';
+    delBtn.onclick = (e) => { e.stopPropagation(); deleteDay(dateKey); };
+    dayEl.querySelector('.day-header').appendChild(delBtn);
+  });
+}
+
+function deleteDay(date) {
+  if (!confirm(`确定删除 ${formatDate(date)} 的所有训练记录？`)) return;
+  const data = getData();
+  delete data[date];
+  saveData(data);
+  renderHistory();
+  updateStreak();
+  if (selectedDate === date) refreshRecordTab();
+  showToast('已删除');
+}
+
+function updateStreak() {
+  const data = getData();
+  const today = new Date().toISOString().split('T')[0];
+  let streak = 0;
+  let d = new Date(today);
+  while (true) {
+    const key = d.toISOString().split('T')[0];
+    if (data[key] && data[key].length > 0) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    } else if (key === today) {
+      d.setDate(d.getDate() - 1);
+      continue;
+    } else {
+      break;
+    }
+  }
+  document.getElementById('streakDisplay').textContent = streak > 0 ? `🔥 连续训练 ${streak} 天` : '新的一天，开始训练吧';
+}
+
+function switchTab(tab) {
+  document.getElementById('tabRecord').style.display = tab === 'record' ? 'block' : 'none';
+  document.getElementById('tabHistory').style.display = tab === 'history' ? 'block' : 'none';
+  document.querySelectorAll('.tab-bar button').forEach((b,i) => b.classList.toggle('active', (i===0 && tab==='record') || (i===1 && tab==='history')));
+  if (tab === 'history') renderHistory();
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 24px;border-radius:20px;font-size:.9em;z-index:99;';
+  document.body.appendChild(t);
+  setTimeout(() => { t.remove(); }, 1800);
+}
+
+// Init
+refreshRecordTab();
+updateStreak();
+</script>
+</body>
+</html>
